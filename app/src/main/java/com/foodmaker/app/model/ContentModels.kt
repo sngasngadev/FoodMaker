@@ -12,7 +12,8 @@ data class PartDefinition(
     val accentHex: String?,
     val printWidthMm: Int,
     val printHeightMm: Int,
-    val assetPath: String? = null
+    val assetPath: String? = null,
+    val assetCrop: List<Float>? = null
 )
 
 data class RecipeStep(
