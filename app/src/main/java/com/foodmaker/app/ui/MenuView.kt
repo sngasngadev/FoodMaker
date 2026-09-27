@@ -47,7 +47,7 @@ class MenuView(
             canvas.drawRoundRect(rect, 34f, 34f, paint)
 
             val preview = RectF(rect.left + 24f, rect.top + 16f, rect.left + cardH * 0.95f, rect.bottom - 16f)
-            FoodPainter.drawDish(canvas, recipe.previewParts, parts, preview)
+            FoodPainter.drawDish(canvas, recipe.previewParts, parts, preview, context.assets)
 
             paint.color = Color.rgb(62, 50, 42)
             paint.textAlign = Paint.Align.LEFT
