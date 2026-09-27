@@ -85,7 +85,7 @@
       "output": "pizza_pepperoni_slice",
       "tool": "pizza_cutter",
       "instruction": "피자를 조각으로 잘라요",
-      "repeat": 4,
+      "repeat": 6,
       "dishAfter": [
         "pizza_pepperoni_slice"
       ]
