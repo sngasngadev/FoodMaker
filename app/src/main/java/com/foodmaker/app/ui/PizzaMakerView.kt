@@ -1004,7 +1004,7 @@ class PizzaMakerView(
                         val a = (i * 137.5f) * PI.toFloat() / 180f
                         val rr = .72f * kotlin.math.sqrt((i + 1f) / 35f)
                         cheesePoints += PointF(cos(a) * rr, sin(a) * rr)
-                        haptic(false)
+                        haptic()
                     }
                     if (cheesePoints.size >= 34) {
                         active = false
