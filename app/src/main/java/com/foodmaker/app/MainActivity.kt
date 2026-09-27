@@ -9,6 +9,7 @@ import com.foodmaker.app.model.Recipe
 import com.foodmaker.app.print.RecipePrintAdapter
 import com.foodmaker.app.ui.CookingView
 import com.foodmaker.app.ui.MenuView
+import com.foodmaker.app.ui.PizzaMakerView
 
 class MainActivity : Activity() {
 
@@ -35,6 +36,19 @@ class MainActivity : Activity() {
 
     private fun startRecipe(recipe: Recipe) {
         showingMenu = false
+
+        if (recipe.id == "pizza") {
+            setContentView(
+                PizzaMakerView(
+                    context = this,
+                    parts = repository.parts,
+                    onBack = ::showMenu,
+                    onPrint = { printRecipe(recipe) }
+                )
+            )
+            return
+        }
+
         val session = GameSession(recipe)
         setContentView(
             CookingView(
