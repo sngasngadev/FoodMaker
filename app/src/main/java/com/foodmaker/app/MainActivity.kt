@@ -13,6 +13,7 @@ import com.foodmaker.app.ui.MenuView
 class MainActivity : Activity() {
 
     private lateinit var repository: ContentRepository
+    private var showingMenu: Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,6 +22,7 @@ class MainActivity : Activity() {
     }
 
     private fun showMenu() {
+        showingMenu = true
         setContentView(
             MenuView(
                 context = this,
@@ -32,6 +34,7 @@ class MainActivity : Activity() {
     }
 
     private fun startRecipe(recipe: Recipe) {
+        showingMenu = false
         val session = GameSession(recipe)
         setContentView(
             CookingView(
@@ -55,6 +58,6 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        showMenu()
+        if (showingMenu) finish() else showMenu()
     }
 }
