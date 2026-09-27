@@ -1,7 +1,7 @@
 package com.foodmaker.app.model
 
 enum class ActionType {
-    PLACE, CUT, COOK, FLIP, SPREAD, ROLL, POUR
+    PLACE, CUT, COOK, FLIP, SPREAD, ROLL, POUR, MIX
 }
 
 data class PartDefinition(

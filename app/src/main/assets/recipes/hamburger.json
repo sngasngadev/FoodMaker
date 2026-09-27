@@ -1,7 +1,7 @@
 {
   "id": "hamburger",
   "title": "햄버거",
-  "subtitle": "굽고, 썰고, 차곡차곡",
+  "subtitle": "손질하고, 굽고, 차곡차곡",
   "previewParts": [
     "bun_bottom",
     "patty_cooked",
@@ -20,16 +20,6 @@
   ],
   "steps": [
     {
-      "id": "cook_patty",
-      "action": "COOK",
-      "input": "patty_raw",
-      "output": "patty_cooked",
-      "tool": "spatula",
-      "instruction": "패티를 맛있게 구워요",
-      "repeat": 4,
-      "dishAfter": []
-    },
-    {
       "id": "cut_tomato",
       "action": "CUT",
       "input": "tomato_whole",
@@ -37,6 +27,16 @@
       "tool": "knife",
       "instruction": "토마토를 썰어요",
       "repeat": 3,
+      "dishAfter": []
+    },
+    {
+      "id": "cook_patty",
+      "action": "COOK",
+      "input": "patty_raw",
+      "output": "patty_cooked",
+      "tool": "burger_grill",
+      "instruction": "패티를 구워요",
+      "repeat": 1,
       "dishAfter": []
     },
     {
@@ -48,7 +48,8 @@
       "dishAfter": [
         "bun_bottom"
       ],
-      "itemScale": 0.48
+      "itemScale": 0.48,
+      "placementMode": "burger_stack"
     },
     {
       "id": "place_patty",
@@ -60,7 +61,8 @@
         "bun_bottom",
         "patty_cooked"
       ],
-      "itemScale": 0.44
+      "itemScale": 0.44,
+      "placementMode": "burger_stack"
     },
     {
       "id": "place_cheese",
@@ -73,7 +75,8 @@
         "patty_cooked",
         "cheese"
       ],
-      "itemScale": 0.46
+      "itemScale": 0.46,
+      "placementMode": "burger_stack"
     },
     {
       "id": "place_lettuce",
@@ -87,13 +90,14 @@
         "cheese",
         "lettuce"
       ],
-      "itemScale": 0.45
+      "itemScale": 0.45,
+      "placementMode": "burger_stack"
     },
     {
       "id": "place_tomato",
       "action": "PLACE",
       "input": "tomato_slices",
-      "instruction": "토마토를 올려요",
+      "instruction": "토마토 한 장을 올려요",
       "repeat": 1,
       "dishAfter": [
         "bun_bottom",
@@ -102,7 +106,8 @@
         "lettuce",
         "tomato_slices"
       ],
-      "itemScale": 0.2
+      "itemScale": 0.18,
+      "placementMode": "burger_stack"
     },
     {
       "id": "place_top",
@@ -118,7 +123,8 @@
         "tomato_slices",
         "bun_top"
       ],
-      "itemScale": 0.5
+      "itemScale": 0.5,
+      "placementMode": "burger_stack"
     }
   ]
 }

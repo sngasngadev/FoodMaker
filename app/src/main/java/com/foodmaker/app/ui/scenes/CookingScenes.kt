@@ -1097,6 +1097,12 @@ object CookingSceneFactory {
         onComplete: () -> Unit
     ): CookingScene {
         return when {
+            step.action == ActionType.POUR && step.tool == "bowl" ->
+                BowlPourScene(host, step, parts, dishParts, onComplete)
+
+            step.action == ActionType.MIX ->
+                MixScene(host, step, parts, dishParts, onComplete)
+
             step.action == ActionType.CUT ->
                 CutScene(host, step, parts, dishParts, onComplete)
 
@@ -1108,8 +1114,24 @@ object CookingSceneFactory {
                 SauceScene(host, step, parts, dishParts, onComplete)
 
             step.action == ActionType.COOK &&
+                step.tool == "sauce_pan" ->
+                SauceCookScene(host, step, parts, dishParts, onComplete)
+
+            step.action == ActionType.COOK &&
+                step.tool == "burger_grill" ->
+                BurgerGrillScene(host, step, parts, dishParts, onComplete)
+
+            step.action == ActionType.COOK &&
                 step.tool == "oven" ->
                 OvenScene(host, step, parts, dishParts, onComplete)
+
+            step.action == ActionType.PLACE &&
+                step.tool == "grater" ->
+                CheeseGrateScene(host, step, parts, dishParts, onComplete)
+
+            step.action == ActionType.PLACE &&
+                step.placementMode == "burger_stack" ->
+                BurgerStackScene(host, step, parts, dishParts, onComplete)
 
             step.action == ActionType.COOK ->
                 GrillScene(host, step, parts, dishParts, onComplete)

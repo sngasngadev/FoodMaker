@@ -1,7 +1,7 @@
 {
   "id": "pizza",
   "title": "피자",
-  "subtitle": "펴고, 바르고, 올리고, 굽기",
+  "subtitle": "섞고, 밀고, 손질하고, 굽기",
   "previewParts": [
     "pizza_pepperoni_baked"
   ],
@@ -18,12 +18,68 @@
   ],
   "steps": [
     {
+      "id": "pour_flour",
+      "action": "POUR",
+      "input": "flour",
+      "output": "dough_wet",
+      "tool": "bowl",
+      "instruction": "밀가루를 그릇에 부어요",
+      "repeat": 1,
+      "dishAfter": []
+    },
+    {
+      "id": "pour_water",
+      "action": "POUR",
+      "input": "water",
+      "output": "dough_wet",
+      "tool": "bowl",
+      "instruction": "물을 넣어요",
+      "repeat": 1,
+      "dishAfter": []
+    },
+    {
+      "id": "mix_dough",
+      "action": "MIX",
+      "input": "dough_wet",
+      "output": "dough_ball",
+      "tool": "spoon",
+      "instruction": "빙글빙글 반죽을 섞어요",
+      "repeat": 3,
+      "dishAfter": [
+        "dough_ball"
+      ]
+    },
+    {
       "id": "spread_dough",
       "action": "SPREAD",
       "input": "dough_ball",
       "output": "pizza_dough",
       "tool": "rolling_pin",
-      "instruction": "반죽을 둥글게 펴요",
+      "instruction": "밀대로 반죽을 펴요",
+      "repeat": 4,
+      "dishAfter": [
+        "pizza_dough"
+      ]
+    },
+    {
+      "id": "cut_tomato",
+      "action": "CUT",
+      "input": "tomato_whole",
+      "output": "tomato_slices",
+      "tool": "knife",
+      "instruction": "토마토를 썰어요",
+      "repeat": 3,
+      "dishAfter": [
+        "pizza_dough"
+      ]
+    },
+    {
+      "id": "cook_sauce",
+      "action": "COOK",
+      "input": "tomato_slices",
+      "output": "tomato_sauce",
+      "tool": "sauce_pan",
+      "instruction": "토마토를 저어 소스를 만들어요",
       "repeat": 4,
       "dishAfter": [
         "pizza_dough"
@@ -35,30 +91,30 @@
       "input": "pizza_dough",
       "output": "pizza_sauced",
       "tool": "spoon",
-      "instruction": "토마토 소스를 발라요",
+      "instruction": "소스를 골고루 발라요",
       "repeat": 4,
       "dishAfter": [
         "pizza_sauced"
       ]
     },
     {
-      "id": "place_cheese",
+      "id": "grate_cheese",
       "action": "PLACE",
-      "input": "cheese_shreds",
+      "input": "cheese_wedge",
       "output": "pizza_cheese",
-      "instruction": "치즈를 듬뿍 올려요",
-      "repeat": 1,
+      "tool": "grater",
+      "instruction": "치즈를 갈아 듬뿍 뿌려요",
+      "repeat": 4,
       "dishAfter": [
         "pizza_cheese"
-      ],
-      "itemScale": 0.22
+      ]
     },
     {
       "id": "place_pepperoni",
       "action": "PLACE",
       "input": "pepperoni",
       "output": "pizza_pepperoni",
-      "instruction": "페퍼로니를 올려요",
+      "instruction": "페퍼로니를 하나씩 올려요",
       "repeat": 5,
       "dishAfter": [
         "pizza_pepperoni"

@@ -422,6 +422,51 @@
       "printWidthMm": 80,
       "printHeightMm": 95,
       "asset": "art/pizza_pepperoni_slice.png"
+    },
+    {
+      "id": "flour",
+      "label": "밀가루",
+      "shape": "circle",
+      "color": "#F5E9D2",
+      "accent": "#D7C5A6",
+      "printWidthMm": 45,
+      "printHeightMm": 45
+    },
+    {
+      "id": "water",
+      "label": "물",
+      "shape": "circle",
+      "color": "#A9D9EF",
+      "accent": "#6AA9C8",
+      "printWidthMm": 40,
+      "printHeightMm": 40
+    },
+    {
+      "id": "dough_wet",
+      "label": "섞은 반죽",
+      "shape": "oval",
+      "color": "#DEC090",
+      "accent": "#B78F59",
+      "printWidthMm": 65,
+      "printHeightMm": 45
+    },
+    {
+      "id": "tomato_sauce",
+      "label": "토마토 소스",
+      "shape": "circle",
+      "color": "#D94A35",
+      "accent": "#A93126",
+      "printWidthMm": 55,
+      "printHeightMm": 55
+    },
+    {
+      "id": "cheese_wedge",
+      "label": "치즈 덩어리",
+      "shape": "triangle",
+      "color": "#FFD76A",
+      "accent": "#D9A93B",
+      "printWidthMm": 50,
+      "printHeightMm": 50
     }
   ]
 }
