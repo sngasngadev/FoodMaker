@@ -23,7 +23,8 @@ data class RecipeStep(
     val output: String?,
     val instruction: String,
     val repeat: Int,
-    val dishAfter: List<String>
+    val dishAfter: List<String>,
+    val tool: String? = null
 )
 
 data class Recipe(
