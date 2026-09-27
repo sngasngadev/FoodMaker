@@ -18,32 +18,12 @@
   ],
   "steps": [
     {
-      "id": "pour_flour",
-      "action": "POUR",
-      "input": "flour",
-      "output": "dough_wet",
-      "tool": "bowl",
-      "instruction": "밀가루를 그릇에 부어요",
-      "repeat": 1,
-      "dishAfter": []
-    },
-    {
-      "id": "pour_water",
-      "action": "POUR",
-      "input": "water",
-      "output": "dough_wet",
-      "tool": "bowl",
-      "instruction": "물을 넣어요",
-      "repeat": 1,
-      "dishAfter": []
-    },
-    {
-      "id": "mix_dough",
+      "id": "make_dough",
       "action": "MIX",
       "input": "dough_wet",
       "output": "dough_ball",
-      "tool": "spoon",
-      "instruction": "빙글빙글 반죽을 섞어요",
+      "tool": "dough_bowl",
+      "instruction": "반죽을 만들어요",
       "repeat": 3,
       "dishAfter": [
         "dough_ball"
