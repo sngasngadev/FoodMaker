@@ -55,7 +55,8 @@ class ContentRepository(private val context: Context) {
                                 output = step.stringOrNull("output"),
                                 instruction = step.getString("instruction"),
                                 repeat = step.optInt("repeat", 1).coerceAtLeast(1),
-                                dishAfter = step.optStringList("dishAfter")
+                                dishAfter = step.optStringList("dishAfter"),
+                                tool = step.stringOrNull("tool")
                             )
                         )
                     }
