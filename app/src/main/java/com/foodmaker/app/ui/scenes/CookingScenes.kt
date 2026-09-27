@@ -106,22 +106,43 @@ class CutScene(
             else -> "칼을 잡고 한 번씩 썰어요"
         }
 
-    private fun target(): RectF = SceneArt.targetArea(w, h)
+    private fun visualArea(): RectF {
+        return if (step.tool == "pizza_cutter") {
+            val board = SceneArt.workArea(w, h)
+            val side = min(board.width() * 0.68f, board.height() * 0.78f)
+            RectF(
+                board.centerX() - side / 2f,
+                board.centerY() - side / 2f,
+                board.centerX() + side / 2f,
+                board.centerY() + side / 2f
+            )
+        } else {
+            val board = SceneArt.workArea(w, h)
+            RectF(
+                board.left + board.width() * 0.16f,
+                board.top + board.height() * 0.22f,
+                board.right - board.width() * 0.16f,
+                board.bottom - board.height() * 0.22f
+            )
+        }
+    }
 
     private fun toolHome(): Pair<Float, Float> {
-        val r = target()
-        return r.right + w * 0.05f to r.top + r.height() * 0.15f
+        val r = visualArea()
+        return if (step.tool == "pizza_cutter") {
+            r.right + w * 0.06f to r.top + r.height() * 0.22f
+        } else {
+            r.right + w * 0.08f to r.top + r.height() * 0.16f
+        }
     }
 
     override fun draw(canvas: Canvas) {
         SceneArt.drawBoard(canvas, w, h)
 
-        if (cuts == 0) {
-            part(step.input)?.let {
-                FoodPainter.drawPart(canvas, it, target(), assets)
-            }
+        if (step.tool == "pizza_cutter") {
+            drawPizzaCut(canvas)
         } else {
-            drawCutPieces(canvas)
+            drawSlicedIngredient(canvas)
         }
 
         if (!done) {
@@ -136,47 +157,112 @@ class CutScene(
         }
     }
 
-    private fun drawCutPieces(canvas: Canvas) {
-        val board = target()
-        val remaining = step.repeat - cuts
+    private fun drawSlicedIngredient(canvas: Canvas) {
+        val area = visualArea()
+        val input = part(step.input) ?: return
+        val output = part(step.output)
 
-        if (remaining > 0) {
-            val sourceRect = RectF(
-                board.left - w * 0.02f,
-                board.top + h * 0.015f,
-                board.centerX() + w * 0.02f,
-                board.bottom - h * 0.015f
+        if (cuts == 0 || output == null) {
+            val side = min(area.width(), area.height()) * 0.78f
+            val whole = RectF(
+                area.centerX() - side / 2f,
+                area.centerY() - side / 2f,
+                area.centerX() + side / 2f,
+                area.centerY() + side / 2f
             )
-            part(step.input)?.let {
-                val alpha = (230 - cuts * 28).coerceAtLeast(120)
-                FoodPainter.drawPart(canvas, it, sourceRect, assets, alpha)
+            FoodPainter.drawPart(canvas, input, whole, assets)
+            return
+        }
+
+        val groupWidth = area.width() * 0.86f
+        val groupLeft = area.centerX() - groupWidth / 2f
+        val groupRight = area.centerX() + groupWidth / 2f
+        val wholeSide = min(area.height() * 0.72f, groupWidth * 0.50f)
+        val wholeRect = RectF(
+            groupLeft,
+            area.centerY() - wholeSide / 2f,
+            groupLeft + wholeSide,
+            area.centerY() + wholeSide / 2f
+        )
+
+        val removedFraction = (cuts.toFloat() / step.repeat.coerceAtLeast(1)) * 0.44f
+        val visibleFraction = (1f - removedFraction).coerceAtLeast(0.52f)
+        val clipRight = wholeRect.left + wholeRect.width() * visibleFraction
+
+        canvas.save()
+        canvas.clipRect(
+            wholeRect.left - 2f,
+            wholeRect.top - 2f,
+            clipRight,
+            wholeRect.bottom + 2f
+        )
+        FoodPainter.drawPart(canvas, input, wholeRect, assets)
+        canvas.restore()
+
+        val pieceSide = min(area.height() * 0.31f, groupWidth * 0.19f)
+        val gap = pieceSide * 0.12f
+        val startX = clipRight + gap + pieceSide / 2f
+        val availableRight = groupRight - pieceSide / 2f
+
+        repeat(cuts) { i ->
+            val cx = (startX + i * (pieceSide * 0.72f + gap)).coerceAtMost(availableRight)
+            val stagger = if (i % 2 == 0) -pieceSide * 0.04f else pieceSide * 0.05f
+            val cy = area.centerY() + stagger
+            FoodPainter.drawPart(
+                canvas,
+                output,
+                RectF(
+                    cx - pieceSide / 2f,
+                    cy - pieceSide / 2f,
+                    cx + pieceSide / 2f,
+                    cy + pieceSide / 2f
+                ),
+                assets
+            )
+        }
+
+        paint.color = Color.argb(80, 120, 70, 35)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = w * 0.004f
+        canvas.drawLine(
+            clipRight,
+            wholeRect.top + wholeRect.height() * 0.14f,
+            clipRight,
+            wholeRect.bottom - wholeRect.height() * 0.14f,
+            paint
+        )
+        paint.style = Paint.Style.FILL
+    }
+
+    private fun drawPizzaCut(canvas: Canvas) {
+        val pizza = part(step.input) ?: return
+        val r = visualArea()
+        val cx = r.centerX()
+        val cy = r.centerY()
+        val radius = min(r.width(), r.height()) / 2f
+        val segments = step.repeat.coerceAtLeast(4)
+        val baseStart = -90f
+        val gapDistance = radius * 0.085f
+
+        repeat(segments) { i ->
+            val startDeg = baseStart + 360f * i / segments
+            val endDeg = baseStart + 360f * (i + 1) / segments
+            val midRad = Math.toRadians(((startDeg + endDeg) / 2f).toDouble())
+            val separated = i < cuts
+            val dx = if (separated) (cos(midRad) * gapDistance).toFloat() else 0f
+            val dy = if (separated) (sin(midRad) * gapDistance).toFloat() else 0f
+
+            val wedge = Path().apply {
+                moveTo(cx, cy)
+                arcTo(r, startDeg, endDeg - startDeg, false)
+                close()
             }
-        }
 
-        val output = part(step.output) ?: return
-        val pieceCount = cuts.coerceAtLeast(1)
-        val rightLeft = if (remaining > 0) board.centerX() else board.left
-        val rightWidth = if (remaining > 0) board.right - rightLeft else board.width()
-        val cols = if (pieceCount <= 2) pieceCount else 2
-        val rows = ((pieceCount + cols - 1) / cols).coerceAtLeast(1)
-        val pieceW = when (step.tool) {
-            "pizza_cutter" -> min(w * 0.20f, rightWidth * 0.48f)
-            else -> min(w * 0.16f, rightWidth * 0.42f)
-        }
-        val pieceH = if (step.tool == "pizza_cutter") pieceW * 1.15f else pieceW
-
-        repeat(pieceCount) { i ->
-            val col = i % cols
-            val row = i / cols
-            val cx = rightLeft + rightWidth * ((col + 0.5f) / cols)
-            val cy = board.top + board.height() * ((row + 0.5f) / rows)
-            val r = RectF(
-                cx - pieceW / 2f,
-                cy - pieceH / 2f,
-                cx + pieceW / 2f,
-                cy + pieceH / 2f
-            )
-            FoodPainter.drawPart(canvas, output, r, assets)
+            canvas.save()
+            canvas.translate(dx, dy)
+            canvas.clipPath(wedge)
+            FoodPainter.drawPart(canvas, pizza, r, assets)
+            canvas.restore()
         }
     }
 
@@ -200,18 +286,18 @@ class CutScene(
                 toolX = event.x
                 toolY = event.y
                 travel += abs(dy)
-                if (target().contains(event.x, event.y)) touchedTarget = true
+                if (visualArea().contains(event.x, event.y)) touchedTarget = true
                 host.invalidate()
             }
 
             MotionEvent.ACTION_UP -> if (active) {
                 val minTravel =
-                    if (step.tool == "pizza_cutter") w * 0.18f else h * 0.09f
+                    if (step.tool == "pizza_cutter") w * 0.16f else h * 0.075f
 
                 if (
                     touchedTarget &&
                     travel >= minTravel &&
-                    abs(event.y - downY) >= h * 0.055f
+                    abs(event.y - downY) >= h * 0.045f
                 ) {
                     cuts += 1
                     haptic()
