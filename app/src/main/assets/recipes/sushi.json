@@ -2,7 +2,7 @@
   "id":"sushi",
   "title":"스시",
   "subtitle":"연어를 썰고, 올리고, 말기",
-  "previewParts":["rice","salmon_slice"],
+  "previewParts":["salmon_nigiri"],
   "printParts":["rice","salmon_slice","nori_sheet","sushi_piece","sushi_piece","sushi_piece"],
   "steps":[
     {"id":"cut_salmon","action":"CUT","input":"salmon_block","output":"salmon_slice","instruction":"연어를 얇게 썰어요","repeat":3,"dishAfter":[]},
@@ -10,6 +10,6 @@
     {"id":"place_salmon","action":"PLACE","input":"salmon_slice","instruction":"연어를 밥 위에 올려요","repeat":1,"dishAfter":["rice","salmon_slice"]},
     {"id":"place_nori","action":"PLACE","input":"nori_sheet","instruction":"김도 준비해요","repeat":1,"dishAfter":["nori_sheet","rice","salmon_slice"]},
     {"id":"roll_sushi","action":"ROLL","input":"nori_sheet","output":"sushi_roll","instruction":"아래에서 위로 돌돌 말아요","repeat":1,"dishAfter":["sushi_roll"]},
-    {"id":"cut_roll","action":"CUT","input":"sushi_roll","output":"sushi_piece","instruction":"먹기 좋게 잘라요","repeat":3,"dishAfter":["sushi_piece"]}
+    {"id":"cut_roll","action":"CUT","input":"sushi_roll","output":"sushi_pieces","instruction":"먹기 좋게 잘라요","repeat":3,"dishAfter":["sushi_pieces"]}
   ]
 }
