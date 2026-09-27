@@ -29,7 +29,8 @@ class ContentRepository(private val context: Context) {
                     accentHex = item.stringOrNull("accent"),
                     printWidthMm = item.optInt("printWidthMm", 55),
                     printHeightMm = item.optInt("printHeightMm", 35),
-                    assetPath = item.stringOrNull("asset"),\n                    assetCrop = item.optFloatList("assetCrop")
+                    assetPath = item.stringOrNull("asset"),
+                    assetCrop = item.optFloatList("assetCrop")
                 )
                 put(part.id, part)
             }
@@ -73,7 +74,15 @@ class ContentRepository(private val context: Context) {
     private fun JSONObject.stringOrNull(key: String): String? =
         if (has(key) && !isNull(key)) getString(key) else null
 
-    private fun JSONObject.optFloatList(key: String): List<Float>? {\n        if (!has(key) || isNull(key)) return null\n        val array = getJSONArray(key)\n        return buildList {\n            for (i in 0 until array.length()) add(array.getDouble(i).toFloat())\n        }\n    }\n\n    private fun JSONObject.optStringList(key: String): List<String> {
+    private fun JSONObject.optFloatList(key: String): List<Float>? {
+        if (!has(key) || isNull(key)) return null
+        val array = getJSONArray(key)
+        return buildList {
+            for (i in 0 until array.length()) add(array.getDouble(i).toFloat())
+        }
+    }
+
+    private fun JSONObject.optStringList(key: String): List<String> {
         if (!has(key) || isNull(key)) return emptyList()
         val array = getJSONArray(key)
         return buildList {
