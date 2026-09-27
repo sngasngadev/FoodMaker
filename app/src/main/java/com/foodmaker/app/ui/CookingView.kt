@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import com.foodmaker.app.engine.GameSession
@@ -35,6 +36,9 @@ class CookingView(
     private var gestureProgress = 0f
     private var repetitions = 0
     private var cutTravel = 0f
+    private var activeDrag = false
+    private var enteredTarget = false
+    private var transitioning = false
 
     private val dishArea: RectF
         get() = RectF(width * 0.09f, height * 0.29f, width * 0.91f, height * 0.66f)
@@ -171,7 +175,8 @@ class CookingView(
     private fun drawCutScene(canvas: Canvas, step: RecipeStep) {
         drawBoard(canvas)
         val target = targetRect()
-        parts[step.input]?.let {
+        val cutPartId = if (transitioning && step.output != null) step.output else step.input
+        cutPartId?.let(parts::get)?.let {
             FoodPainter.drawPart(canvas, it, target, context.assets)
         }
 
@@ -289,7 +294,9 @@ class CookingView(
         ((repetitions + gestureProgress.coerceIn(0f, 1f)) / step.repeat.toFloat()).coerceIn(0f, 1f)
 
     private fun drawHint(canvas: Canvas, step: RecipeStep) {
-        val hint = when {
+        val hint = if (transitioning) {
+            "좋아!"
+        } else when {
             step.action == ActionType.PLACE -> "재료를 접시 위에 올려요"
             step.action == ActionType.CUT && step.tool == "pizza_cutter" -> "피자 커터를 움직여 잘라요"
             step.action == ActionType.CUT -> "칼을 위아래로 움직여 썰어요"
@@ -446,6 +453,75 @@ class CookingView(
         paint.strokeCap = Paint.Cap.BUTT
     }
 
+    private fun toolHome(step: RecipeStep): Pair<Float, Float> = when {
+        step.action == ActionType.CUT -> {
+            val target = targetRect()
+            (target.right + width * 0.04f) to target.centerY()
+        }
+        step.action == ActionType.COOK && step.tool != "oven" -> width * 0.72f to height * 0.61f
+        step.action == ActionType.SPREAD -> width * 0.65f to height * 0.66f
+        step.action == ActionType.FLIP -> width * 0.72f to height * 0.61f
+        else -> width / 2f to height * 0.80f
+    }
+
+    private fun ingredientHome(): Pair<Float, Float> = width / 2f to height * 0.80f
+
+    private fun near(x: Float, y: Float, cx: Float, cy: Float, radius: Float): Boolean =
+        hypot((x - cx).toDouble(), (y - cy).toDouble()) <= radius
+
+    private fun canGrabTool(step: RecipeStep, x: Float, y: Float): Boolean {
+        val (hx, hy) = if (toolX == 0f && toolY == 0f) toolHome(step) else toolX to toolY
+        return near(x, y, hx, hy, width * 0.20f)
+    }
+
+    private fun canGrabIngredient(x: Float, y: Float): Boolean {
+        val (hx, hy) = if (dragX == 0f && dragY == 0f) ingredientHome() else dragX to dragY
+        return near(x, y, hx, hy, width * 0.22f)
+    }
+
+    private fun successPauseMs(step: RecipeStep): Long = when (step.action) {
+        ActionType.CUT -> 850L
+        ActionType.COOK, ActionType.SPREAD -> 750L
+        else -> 550L
+    }
+
+    private fun completeStepAfterPause(step: RecipeStep) {
+        if (transitioning) return
+        transitioning = true
+        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        invalidate()
+
+        postDelayed({
+            session.completeCurrentStep()
+            resetInteraction()
+            transitioning = false
+            invalidate()
+        }, successPauseMs(step))
+    }
+
+    private fun addContinuousProgress(step: RecipeStep, dx: Float, dy: Float) {
+        val qualifyingDistance = when {
+            step.action == ActionType.SPREAD && step.tool == "rolling_pin" -> abs(dx)
+            else -> hypot(dx.toDouble(), dy.toDouble()).toFloat()
+        }
+        val unitDistance = when (step.action) {
+            ActionType.COOK -> width * 1.05f
+            ActionType.SPREAD -> width * 0.95f
+            else -> width
+        }
+        gestureProgress += qualifyingDistance / unitDistance
+
+        while (gestureProgress >= 1f && !transitioning) {
+            gestureProgress -= 1f
+            repetitions += 1
+            performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            if (repetitions >= step.repeat) {
+                gestureProgress = 0f
+                completeStepAfterPause(step)
+            }
+        }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.action == MotionEvent.ACTION_UP && event.x < width * 0.16f && event.y < height * 0.13f) {
             onBack()
@@ -456,17 +532,19 @@ class CookingView(
             if (event.action == MotionEvent.ACTION_UP) {
                 val buttons = finishButtons()
                 when {
-                    buttons[0].contains(event.x,event.y) -> {
+                    buttons[0].contains(event.x, event.y) -> {
                         session.reset()
                         resetInteraction()
                         invalidate()
                     }
-                    buttons[1].contains(event.x,event.y) -> onBack()
-                    buttons[2].contains(event.x,event.y) -> onPrint()
+                    buttons[1].contains(event.x, event.y) -> onBack()
+                    buttons[2].contains(event.x, event.y) -> onPrint()
                 }
             }
             return true
         }
+
+        if (transitioning) return true
 
         val step = session.currentStep ?: return true
 
@@ -476,24 +554,46 @@ class CookingView(
                 downY = event.y
                 lastX = event.x
                 lastY = event.y
-                when {
-                    step.action == ActionType.PLACE || step.action == ActionType.POUR || (step.action == ActionType.COOK && step.tool == "oven") -> {
-                        dragX = event.x
-                        dragY = event.y
+                enteredTarget = false
+                cutTravel = 0f
+
+                activeDrag = when {
+                    step.action == ActionType.PLACE ||
+                        step.action == ActionType.POUR ||
+                        (step.action == ActionType.COOK && step.tool == "oven") -> {
+                        if (canGrabIngredient(event.x, event.y)) {
+                            dragX = event.x
+                            dragY = event.y
+                            true
+                        } else false
                     }
-                    step.action == ActionType.CUT || step.action == ActionType.COOK || step.action == ActionType.SPREAD || step.action == ActionType.FLIP -> {
-                        toolX = event.x
-                        toolY = event.y
+
+                    step.action == ActionType.CUT ||
+                        step.action == ActionType.COOK ||
+                        step.action == ActionType.SPREAD ||
+                        step.action == ActionType.FLIP -> {
+                        if (canGrabTool(step, event.x, event.y)) {
+                            toolX = event.x
+                            toolY = event.y
+                            true
+                        } else false
                     }
+
+                    step.action == ActionType.ROLL -> true
+                    else -> false
                 }
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (!activeDrag) return true
+
                 val dx = event.x - lastX
                 val dy = event.y - lastY
 
                 when {
-                    step.action == ActionType.PLACE || step.action == ActionType.POUR || (step.action == ActionType.COOK && step.tool == "oven") -> {
+                    step.action == ActionType.PLACE ||
+                        step.action == ActionType.POUR ||
+                        (step.action == ActionType.COOK && step.tool == "oven") -> {
                         dragX = event.x
                         dragY = event.y
                     }
@@ -501,21 +601,17 @@ class CookingView(
                     step.action == ActionType.CUT -> {
                         toolX = event.x
                         toolY = event.y
-                        if (targetRect().contains(event.x,event.y)) {
-                            cutTravel += abs(dy)
-                            if (cutTravel >= height * 0.055f) {
-                                cutTravel = 0f
-                                registerRepetition(step.repeat)
-                            }
+                        if (targetRect().contains(event.x, event.y)) {
+                            enteredTarget = true
+                            cutTravel += hypot(dx.toDouble(), dy.toDouble()).toFloat()
                         }
                     }
 
                     step.action == ActionType.COOK || step.action == ActionType.SPREAD -> {
                         toolX = event.x
                         toolY = event.y
-                        if (workArea.contains(event.x,event.y)) {
-                            gestureProgress += hypot(dx.toDouble(), dy.toDouble()).toFloat() / (width * 0.65f)
-                            if (gestureProgress >= 1f) registerRepetition(step.repeat)
+                        if (workArea.contains(event.x, event.y)) {
+                            addContinuousProgress(step, dx, dy)
                         }
                     }
 
@@ -531,49 +627,71 @@ class CookingView(
             }
 
             MotionEvent.ACTION_UP -> {
+                if (!activeDrag) return true
+
                 when {
                     step.action == ActionType.PLACE || step.action == ActionType.POUR -> {
-                        if (dishArea.contains(event.x,event.y)) registerRepetition(step.repeat)
+                        if (dishArea.contains(event.x, event.y)) {
+                            repetitions += 1
+                            performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            if (repetitions >= step.repeat) completeStepAfterPause(step)
+                            else {
+                                dragX = 0f
+                                dragY = 0f
+                            }
+                        } else {
+                            dragX = 0f
+                            dragY = 0f
+                        }
                     }
 
                     step.action == ActionType.COOK && step.tool == "oven" -> {
                         val ovenInside = RectF(width * 0.22f, height * 0.35f, width * 0.78f, height * 0.59f)
-                        if (ovenInside.contains(event.x,event.y)) registerRepetition(step.repeat)
+                        if (ovenInside.contains(event.x, event.y)) {
+                            repetitions = step.repeat
+                            completeStepAfterPause(step)
+                        } else {
+                            dragX = 0f
+                            dragY = 0f
+                        }
+                    }
+
+                    step.action == ActionType.CUT -> {
+                        val minStroke = if (step.tool == "pizza_cutter") width * 0.18f else height * 0.10f
+                        if (enteredTarget && cutTravel >= minStroke) {
+                            repetitions += 1
+                            performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            if (repetitions >= step.repeat) completeStepAfterPause(step)
+                        }
+                        toolX = 0f
+                        toolY = 0f
+                        cutTravel = 0f
+                        enteredTarget = false
                     }
 
                     step.action == ActionType.FLIP -> {
-                        if (downY - event.y > height * 0.10f) registerRepetition(step.repeat)
+                        if (downY - event.y > height * 0.13f) {
+                            repetitions += 1
+                            completeStepAfterPause(step)
+                        } else {
+                            toolX = 0f
+                            toolY = 0f
+                        }
                     }
 
                     step.action == ActionType.ROLL -> {
-                        if (downY - event.y > height * 0.10f) registerRepetition(step.repeat)
+                        if (downY - event.y > height * 0.13f) {
+                            repetitions += 1
+                            completeStepAfterPause(step)
+                        }
                     }
                 }
 
-                if (!session.isFinished) {
-                    val now = session.currentStep
-                    if (now?.action == ActionType.PLACE || now?.action == ActionType.POUR || (now?.action == ActionType.COOK && now.tool == "oven")) {
-                        dragX = 0f
-                        dragY = 0f
-                    }
-                }
+                activeDrag = false
                 invalidate()
             }
         }
         return true
-    }
-
-    private fun registerRepetition(required: Int) {
-        repetitions += 1
-        gestureProgress = 0f
-        if (repetitions >= required) {
-            session.completeCurrentStep()
-            resetInteraction()
-        } else {
-            dragX = 0f
-            dragY = 0f
-        }
-        invalidate()
     }
 
     private fun resetInteraction() {
@@ -584,5 +702,8 @@ class CookingView(
         dragY = 0f
         toolX = 0f
         toolY = 0f
+        activeDrag = false
+        enteredTarget = false
     }
+
 }
