@@ -24,7 +24,9 @@ data class RecipeStep(
     val instruction: String,
     val repeat: Int,
     val dishAfter: List<String>,
-    val tool: String? = null
+    val tool: String? = null,
+    val placementMode: String? = null,
+    val itemScale: Float? = null
 )
 
 data class Recipe(
