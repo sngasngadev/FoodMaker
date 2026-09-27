@@ -507,7 +507,7 @@ class CookingView(
         val unitDistance = when (step.action) {
             ActionType.COOK -> width * 1.05f
             ActionType.SPREAD -> width * 0.95f
-            else -> width
+            else -> width.toFloat()
         }
         gestureProgress += qualifyingDistance / unitDistance
 
@@ -658,13 +658,15 @@ class CookingView(
 
                     step.action == ActionType.CUT -> {
                         val minStroke = if (step.tool == "pizza_cutter") width * 0.18f else height * 0.10f
-                        if (enteredTarget && cutTravel >= minStroke) {
+                        val successfulStroke = enteredTarget && cutTravel >= minStroke
+                        if (successfulStroke) {
                             repetitions += 1
                             performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             if (repetitions >= step.repeat) completeStepAfterPause(step)
+                        } else {
+                            toolX = 0f
+                            toolY = 0f
                         }
-                        toolX = 0f
-                        toolY = 0f
                         cutTravel = 0f
                         enteredTarget = false
                     }
