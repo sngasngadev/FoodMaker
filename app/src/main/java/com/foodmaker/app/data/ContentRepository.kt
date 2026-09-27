@@ -56,7 +56,9 @@ class ContentRepository(private val context: Context) {
                                 instruction = step.getString("instruction"),
                                 repeat = step.optInt("repeat", 1).coerceAtLeast(1),
                                 dishAfter = step.optStringList("dishAfter"),
-                                tool = step.stringOrNull("tool")
+                                tool = step.stringOrNull("tool"),
+                                placementMode = step.stringOrNull("placementMode"),
+                                itemScale = step.floatOrNull("itemScale")
                             )
                         )
                     }
@@ -74,6 +76,9 @@ class ContentRepository(private val context: Context) {
 
     private fun JSONObject.stringOrNull(key: String): String? =
         if (has(key) && !isNull(key)) getString(key) else null
+
+    private fun JSONObject.floatOrNull(key: String): Float? =
+        if (has(key) && !isNull(key)) getDouble(key).toFloat() else null
 
     private fun JSONObject.optFloatList(key: String): List<Float>? {
         if (!has(key) || isNull(key)) return null
