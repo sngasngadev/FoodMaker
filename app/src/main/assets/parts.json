@@ -115,10 +115,10 @@
       "printHeightMm": 58,
       "asset": "art/hamburger_sheet.png",
       "assetCrop": [
-        0.34403,
-        0.50214,
-        0.57576,
-        0.6826
+        0.355,
+        0.507,
+        0.568,
+        0.678
       ]
     },
     {
@@ -131,10 +131,10 @@
       "printHeightMm": 46,
       "asset": "art/hamburger_sheet.png",
       "assetCrop": [
-        0.57,
-        0.525,
-        0.76,
-        0.69
+        0.592,
+        0.535,
+        0.748,
+        0.682
       ]
     },
     {
