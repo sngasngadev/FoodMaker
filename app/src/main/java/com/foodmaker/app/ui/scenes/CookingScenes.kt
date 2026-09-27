@@ -3,6 +3,7 @@ package com.foodmaker.app.ui.scenes
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RectF
 import android.view.HapticFeedbackConstants
@@ -12,9 +13,12 @@ import com.foodmaker.app.model.ActionType
 import com.foodmaker.app.model.PartDefinition
 import com.foodmaker.app.model.RecipeStep
 import com.foodmaker.app.ui.FoodPainter
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.min
+import kotlin.math.sin
 
 interface CookingScene {
     val instruction: String
@@ -41,7 +45,10 @@ abstract class BaseCookingScene(
         hypot((x - cx).toDouble(), (y - cy).toDouble()) <= r
 
     protected fun haptic(tick: Boolean = true) {
-        host.performHapticFeedback(if (tick) HapticFeedbackConstants.CLOCK_TICK else HapticFeedbackConstants.VIRTUAL_KEY)
+        host.performHapticFeedback(
+            if (tick) HapticFeedbackConstants.CLOCK_TICK
+            else HapticFeedbackConstants.VIRTUAL_KEY
+        )
     }
 
     protected fun finish() {
@@ -52,14 +59,26 @@ abstract class BaseCookingScene(
         host.invalidate()
     }
 
-    protected fun drawMorph(canvas: Canvas, inputId: String, outputId: String?, rect: RectF, progress: Float) {
+    protected fun drawMorph(
+        canvas: Canvas,
+        inputId: String,
+        outputId: String?,
+        rect: RectF,
+        progress: Float
+    ) {
         val input = part(inputId)
         val output = part(outputId)
         if (input != null) {
-            FoodPainter.drawPart(canvas, input, rect, assets, (255 * (1f - progress * 0.75f)).toInt().coerceIn(60, 255))
+            FoodPainter.drawPart(
+                canvas, input, rect, assets,
+                (255 * (1f - progress * 0.75f)).toInt().coerceIn(60, 255)
+            )
         }
         if (output != null && progress > 0f) {
-            FoodPainter.drawPart(canvas, output, rect, assets, (255 * progress).toInt().coerceIn(0, 255))
+            FoodPainter.drawPart(
+                canvas, output, rect, assets,
+                (255 * progress).toInt().coerceIn(0, 255)
+            )
         }
     }
 }
@@ -81,45 +100,90 @@ class CutScene(
     private var done = false
 
     override val instruction: String
-        get() = if (done) "잘 잘랐어요!" else if (step.tool == "pizza_cutter") "피자 커터로 선을 따라 잘라요" else "칼을 잡고 한 번씩 썰어요"
+        get() = when {
+            done -> "잘 잘랐어요!"
+            step.tool == "pizza_cutter" -> "피자 커터로 한 조각씩 잘라요"
+            else -> "칼을 잡고 한 번씩 썰어요"
+        }
 
     private fun target(): RectF = SceneArt.targetArea(w, h)
 
     private fun toolHome(): Pair<Float, Float> {
         val r = target()
-        val guideX = r.left + r.width() * (cuts + 1f) / (step.repeat + 1f)
-        return guideX + w * 0.11f to r.top + r.height() * 0.10f
+        return r.right + w * 0.05f to r.top + r.height() * 0.15f
     }
 
     override fun draw(canvas: Canvas) {
         SceneArt.drawBoard(canvas, w, h)
-        val r = target()
 
-        if (done) {
-            part(step.output)?.let { FoodPainter.drawPart(canvas, it, r, assets) }
-        } else {
-            part(step.input)?.let { FoodPainter.drawPart(canvas, it, r, assets) }
-
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = w * 0.006f
-            repeat(step.repeat) { i ->
-                val x = r.left + r.width() * (i + 1f) / (step.repeat + 1f)
-                paint.color = if (i < cuts) Color.argb(220, 255, 255, 255) else Color.argb(90, 255, 255, 255)
-                canvas.drawLine(x, r.top + r.height() * 0.10f, x, r.bottom - r.height() * 0.10f, paint)
+        if (cuts == 0) {
+            part(step.input)?.let {
+                FoodPainter.drawPart(canvas, it, target(), assets)
             }
-            paint.style = Paint.Style.FILL
+        } else {
+            drawCutPieces(canvas)
         }
 
-        val (hx, hy) = toolHome()
-        val x = if (toolX == 0f) hx else toolX
-        val y = if (toolY == 0f) hy else toolY
-        if (step.tool == "pizza_cutter") SceneArt.drawPizzaCutter(canvas, w, x, y)
-        else SceneArt.drawKnife(canvas, w, x, y)
+        if (!done) {
+            val (hx, hy) = toolHome()
+            val x = if (toolX == 0f) hx else toolX
+            val y = if (toolY == 0f) hy else toolY
+            if (step.tool == "pizza_cutter") {
+                SceneArt.drawPizzaCutter(canvas, w, x, y)
+            } else {
+                SceneArt.drawKnife(canvas, w, x, y)
+            }
+        }
+    }
+
+    private fun drawCutPieces(canvas: Canvas) {
+        val board = target()
+        val remaining = step.repeat - cuts
+
+        if (remaining > 0) {
+            val sourceRect = RectF(
+                board.left - w * 0.02f,
+                board.top + h * 0.015f,
+                board.centerX() + w * 0.02f,
+                board.bottom - h * 0.015f
+            )
+            part(step.input)?.let {
+                val alpha = (230 - cuts * 28).coerceAtLeast(120)
+                FoodPainter.drawPart(canvas, it, sourceRect, assets, alpha)
+            }
+        }
+
+        val output = part(step.output) ?: return
+        val pieceCount = cuts.coerceAtLeast(1)
+        val rightLeft = if (remaining > 0) board.centerX() else board.left
+        val rightWidth = if (remaining > 0) board.right - rightLeft else board.width()
+        val cols = if (pieceCount <= 2) pieceCount else 2
+        val rows = ((pieceCount + cols - 1) / cols).coerceAtLeast(1)
+        val pieceW = when (step.tool) {
+            "pizza_cutter" -> min(w * 0.20f, rightWidth * 0.48f)
+            else -> min(w * 0.16f, rightWidth * 0.42f)
+        }
+        val pieceH = if (step.tool == "pizza_cutter") pieceW * 1.15f else pieceW
+
+        repeat(pieceCount) { i ->
+            val col = i % cols
+            val row = i / cols
+            val cx = rightLeft + rightWidth * ((col + 0.5f) / cols)
+            val cy = board.top + board.height() * ((row + 0.5f) / rows)
+            val r = RectF(
+                cx - pieceW / 2f,
+                cy - pieceH / 2f,
+                cx + pieceW / 2f,
+                cy + pieceH / 2f
+            )
+            FoodPainter.drawPart(canvas, output, r, assets)
+        }
     }
 
     override fun onTouch(event: MotionEvent): Boolean {
         if (done) return true
         val (hx, hy) = if (toolX == 0f) toolHome() else toolX to toolY
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 if (!near(event.x, event.y, hx, hy, w * 0.20f)) return true
@@ -130,6 +194,7 @@ class CutScene(
                 travel = 0f
                 touchedTarget = false
             }
+
             MotionEvent.ACTION_MOVE -> if (active) {
                 val dy = event.y - toolY
                 toolX = event.x
@@ -138,22 +203,29 @@ class CutScene(
                 if (target().contains(event.x, event.y)) touchedTarget = true
                 host.invalidate()
             }
+
             MotionEvent.ACTION_UP -> if (active) {
-                val minTravel = if (step.tool == "pizza_cutter") w * 0.18f else h * 0.09f
-                if (touchedTarget && travel >= minTravel && abs(event.y - downY) >= h * 0.055f) {
+                val minTravel =
+                    if (step.tool == "pizza_cutter") w * 0.18f else h * 0.09f
+
+                if (
+                    touchedTarget &&
+                    travel >= minTravel &&
+                    abs(event.y - downY) >= h * 0.055f
+                ) {
                     cuts += 1
                     haptic()
+                    toolX = 0f
+                    toolY = 0f
                     if (cuts >= step.repeat) {
                         done = true
                         finish()
-                    } else {
-                        toolX = 0f
-                        toolY = 0f
                     }
                 } else {
                     toolX = 0f
                     toolY = 0f
                 }
+
                 active = false
                 host.invalidate()
             }
@@ -171,13 +243,14 @@ class DoughScene(
 ) : BaseCookingScene(host, step, parts, dishParts, onComplete) {
     private var progress = 0f
     private var active = false
-    private var rollerX = 0f
     private var rollerY = 0f
-    private var lastX = 0f
+    private var lastY = 0f
     private var done = false
 
     override val instruction: String
-        get() = if (done) "도우가 완성됐어요!" else "밀대를 좌우로 굴려 반죽을 펴요"
+        get() =
+            if (done) "도우가 완성됐어요!"
+            else "가로 밀대를 위아래로 굴려 반죽을 펴요"
 
     private fun rollerHome() = w * 0.50f to h * 0.68f
 
@@ -192,45 +265,72 @@ class DoughScene(
         } else {
             val baseSize = w * 0.22f
             val growW = baseSize + w * 0.42f * progress
-            val growH = baseSize + w * 0.18f * progress
-            val outputRect = RectF(centerX - growW / 2f, centerY - growH / 2f, centerX + growW / 2f, centerY + growH / 2f)
+            val growH = baseSize + w * 0.32f * progress
+            val outputRect = RectF(
+                centerX - growW / 2f,
+                centerY - growH / 2f,
+                centerX + growW / 2f,
+                centerY + growH / 2f
+            )
+
             if (progress < 0.08f) {
-                val r = RectF(centerX - baseSize / 2f, centerY - baseSize / 2f, centerX + baseSize / 2f, centerY + baseSize / 2f)
+                val r = RectF(
+                    centerX - baseSize / 2f,
+                    centerY - baseSize / 2f,
+                    centerX + baseSize / 2f,
+                    centerY + baseSize / 2f
+                )
                 part(step.input)?.let { FoodPainter.drawPart(canvas, it, r, assets) }
             } else {
                 drawMorph(canvas, step.input, step.output, outputRect, progress)
             }
         }
 
-        val (hx, hy) = rollerHome()
-        SceneArt.drawRollingPin(canvas, w, if (rollerX == 0f) hx else rollerX, if (rollerY == 0f) hy else rollerY)
+        val (_, hy) = rollerHome()
+        SceneArt.drawRollingPin(
+            canvas,
+            w,
+            w * 0.50f,
+            if (rollerY == 0f) hy else rollerY
+        )
     }
 
     override fun onTouch(event: MotionEvent): Boolean {
         if (done) return true
-        val (hx, hy) = if (rollerX == 0f) rollerHome() else rollerX to rollerY
+        val (_, hy) = rollerHome()
+        val currentY = if (rollerY == 0f) hy else rollerY
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                if (!near(event.x, event.y, hx, hy, w * 0.22f)) return true
+                if (!near(event.x, event.y, w * 0.50f, currentY, w * 0.22f)) return true
                 active = true
-                rollerX = event.x
                 rollerY = event.y
-                lastX = event.x
+                lastY = event.y
             }
+
             MotionEvent.ACTION_MOVE -> if (active) {
-                val dx = event.x - lastX
-                rollerX = event.x
-                rollerY = event.y
-                if (SceneArt.workArea(w, h).contains(event.x, event.y)) {
-                    progress = (progress + abs(dx) / (w * step.repeat * 0.78f)).coerceAtMost(1f)
+                val dy = event.y - lastY
+                rollerY = event.y.coerceIn(
+                    SceneArt.workArea(w, h).top,
+                    SceneArt.workArea(w, h).bottom
+                )
+
+                if (SceneArt.workArea(w, h).contains(w * 0.50f, rollerY)) {
+                    progress = (
+                        progress +
+                            abs(dy) / (h * step.repeat * 0.14f)
+                        ).coerceAtMost(1f)
+
                     if (progress >= 1f) {
                         done = true
                         finish()
                     }
                 }
-                lastX = event.x
+
+                lastY = event.y
                 host.invalidate()
             }
+
             MotionEvent.ACTION_UP -> active = false
         }
         return true
@@ -254,10 +354,13 @@ class SauceScene(
     private val trail = mutableListOf<PointF>()
 
     override val instruction: String
-        get() = if (done) "소스를 골고루 발랐어요!" else "숟가락으로 빙글빙글 소스를 펴요"
+        get() =
+            if (done) "소스를 골고루 발랐어요!"
+            else "숟가락으로 빙글빙글 소스를 펴요"
 
     private fun spoonHome() = w * 0.68f to h * 0.68f
-    private fun pizzaRect() = RectF(w * 0.22f, h * 0.34f, w * 0.78f, h * 0.66f)
+    private fun pizzaRect() =
+        RectF(w * 0.22f, h * 0.34f, w * 0.78f, h * 0.66f)
 
     override fun draw(canvas: Canvas) {
         SceneArt.drawBoard(canvas, w, h)
@@ -265,19 +368,37 @@ class SauceScene(
         part(step.input)?.let { FoodPainter.drawPart(canvas, it, r, assets) }
 
         if (progress > 0f) {
-            part(step.output)?.let { FoodPainter.drawPart(canvas, it, r, assets, (50 + 205 * progress).toInt()) }
+            part(step.output)?.let {
+                FoodPainter.drawPart(
+                    canvas,
+                    it,
+                    r,
+                    assets,
+                    (50 + 205 * progress).toInt()
+                )
+            }
         }
 
         paint.color = Color.argb(130, 190, 62, 44)
-        trail.forEach { p -> canvas.drawCircle(p.x, p.y, w * 0.035f, paint) }
+        trail.forEach { p ->
+            canvas.drawCircle(p.x, p.y, w * 0.035f, paint)
+        }
 
         val (hx, hy) = spoonHome()
-        SceneArt.drawSpoon(canvas, w, if (spoonX == 0f) hx else spoonX, if (spoonY == 0f) hy else spoonY)
+        SceneArt.drawSpoon(
+            canvas,
+            w,
+            if (spoonX == 0f) hx else spoonX,
+            if (spoonY == 0f) hy else spoonY
+        )
     }
 
     override fun onTouch(event: MotionEvent): Boolean {
         if (done) return true
-        val (hx, hy) = if (spoonX == 0f) spoonHome() else spoonX to spoonY
+        val (hx, hy) =
+            if (spoonX == 0f) spoonHome()
+            else spoonX to spoonY
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 if (!near(event.x, event.y, hx, hy, w * 0.20f)) return true
@@ -287,26 +408,42 @@ class SauceScene(
                 lastX = event.x
                 lastY = event.y
             }
+
             MotionEvent.ACTION_MOVE -> if (active) {
                 val dx = event.x - lastX
                 val dy = event.y - lastY
                 spoonX = event.x
                 spoonY = event.y
+
                 if (pizzaRect().contains(event.x, event.y)) {
-                    progress = (progress + hypot(dx.toDouble(), dy.toDouble()).toFloat() / (w * step.repeat * 0.90f)).coerceAtMost(1f)
-                    if (trail.isEmpty() || hypot((event.x - trail.last().x).toDouble(), (event.y - trail.last().y).toDouble()) > w * 0.045f) {
+                    progress = (
+                        progress +
+                            hypot(dx.toDouble(), dy.toDouble()).toFloat() /
+                            (w * step.repeat * 0.90f)
+                        ).coerceAtMost(1f)
+
+                    if (
+                        trail.isEmpty() ||
+                        hypot(
+                            (event.x - trail.last().x).toDouble(),
+                            (event.y - trail.last().y).toDouble()
+                        ) > w * 0.045f
+                    ) {
                         trail += PointF(event.x, event.y)
                         if (trail.size > 18) trail.removeAt(0)
                     }
+
                     if (progress >= 1f) {
                         done = true
                         finish()
                     }
                 }
+
                 lastX = event.x
                 lastY = event.y
                 host.invalidate()
             }
+
             MotionEvent.ACTION_UP -> active = false
         }
         return true
@@ -321,47 +458,150 @@ class GrillScene(
     onComplete: () -> Unit
 ) : BaseCookingScene(host, step, parts, dishParts, onComplete) {
     private var cook = 0f
-    private var phase = 0 // 0 first side, 1 flip, 2 second side, 3 done
+    private var phase = 0
     private var active = false
     private var spatX = 0f
     private var spatY = 0f
     private var lastX = 0f
     private var lastY = 0f
-    private var downY = 0f
+    private var underPatty = false
+    private var liftStartY = 0f
+    private var flipping = false
+    private var flipStart = 0L
 
     override val instruction: String
-        get() = when (phase) {
-            0 -> "뒤집개로 패티를 움직이며 한쪽을 익혀요"
-            1 -> "이제 뒤집개를 밑에 넣고 위로 밀어요"
-            2 -> "반대쪽도 노릇하게 익혀요"
+        get() = when {
+            flipping -> "휙!"
+            phase == 0 -> "뒤집개를 움직이며 한쪽을 익혀요"
+            phase == 1 && !underPatty -> "뒤집개를 패티 밑으로 밀어 넣어요"
+            phase == 1 && underPatty -> "그대로 위로 들어 올려요"
+            phase == 2 -> "반대쪽도 노릇하게 익혀요"
             else -> "패티가 맛있게 익었어요!"
         }
 
-    private fun pattyRect() = RectF(w * 0.30f, h * 0.405f, w * 0.70f, h * 0.61f)
+    private fun pattyRect() =
+        RectF(w * 0.30f, h * 0.405f, w * 0.70f, h * 0.61f)
+
     private fun spatHome() = w * 0.73f to h * 0.63f
 
     override fun draw(canvas: Canvas) {
         SceneArt.drawPan(canvas, w, h)
-        drawMorph(canvas, step.input, step.output, pattyRect(), cook)
+
+        if (flipping) {
+            drawFlipAnimation(canvas)
+        } else {
+            drawMorph(canvas, step.input, step.output, pattyRect(), cook)
+        }
 
         if (phase == 0 || phase == 2) {
             paint.color = Color.argb(170, 255, 238, 180)
-            val bubbles = 5
-            repeat(bubbles) { i ->
-                val angle = (i * 1.3f + cook * 3f)
-                val x = w * 0.5f + kotlin.math.cos(angle) * w * 0.12f
-                val y = h * 0.51f + kotlin.math.sin(angle) * w * 0.08f
+            repeat(5) { i ->
+                val angle = i * 1.3f + cook * 3f
+                val x = w * 0.5f + cos(angle) * w * 0.12f
+                val y = h * 0.51f + sin(angle) * w * 0.08f
                 canvas.drawCircle(x, y, w * 0.009f, paint)
             }
         }
 
-        val (hx, hy) = spatHome()
-        SceneArt.drawSpatula(canvas, w, if (spatX == 0f) hx else spatX, if (spatY == 0f) hy else spatY)
+        if (phase == 1 && !flipping) {
+            drawFlipHint(canvas)
+        }
+
+        if (!flipping && phase < 3) {
+            val (hx, hy) = spatHome()
+            SceneArt.drawSpatula(
+                canvas,
+                w,
+                if (spatX == 0f) hx else spatX,
+                if (spatY == 0f) hy else spatY
+            )
+        }
+    }
+
+    private fun drawFlipHint(canvas: Canvas) {
+        val r = pattyRect()
+        paint.color = Color.argb(55, 70, 145, 220)
+        canvas.drawRoundRect(
+            RectF(
+                r.left + r.width() * 0.14f,
+                r.centerY(),
+                r.right - r.width() * 0.14f,
+                r.bottom + h * 0.03f
+            ),
+            22f,
+            22f,
+            paint
+        )
+
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = w * 0.012f
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.color = Color.argb(145, 60, 130, 210)
+        canvas.drawLine(
+            r.centerX(),
+            r.bottom + h * 0.06f,
+            r.centerX(),
+            r.top - h * 0.025f,
+            paint
+        )
+        paint.style = Paint.Style.FILL
+        val arrow = Path().apply {
+            moveTo(r.centerX(), r.top - h * 0.04f)
+            lineTo(r.centerX() - w * 0.035f, r.top + h * 0.015f)
+            lineTo(r.centerX() + w * 0.035f, r.top + h * 0.015f)
+            close()
+        }
+        canvas.drawPath(arrow, paint)
+        paint.strokeCap = Paint.Cap.BUTT
+    }
+
+    private fun drawFlipAnimation(canvas: Canvas) {
+        val elapsed = (System.currentTimeMillis() - flipStart).coerceAtLeast(0L)
+        val t = (elapsed / 520f).coerceIn(0f, 1f)
+        val r = pattyRect()
+        val lift = -sin(PI.toFloat() * t) * w * 0.11f
+        val scaleY = abs(cos(PI.toFloat() * t)).coerceAtLeast(0.10f)
+
+        canvas.save()
+        canvas.translate(r.centerX(), r.centerY() + lift)
+        canvas.scale(1f, scaleY)
+        val local = RectF(
+            -r.width() / 2f,
+            -r.height() / 2f,
+            r.width() / 2f,
+            r.height() / 2f
+        )
+        drawMorph(canvas, step.input, step.output, local, 0.55f)
+        canvas.restore()
+
+        if (t < 1f) {
+            host.postInvalidateOnAnimation()
+        } else {
+            flipping = false
+            phase = 2
+            cook = 0.55f
+            underPatty = false
+            spatX = 0f
+            spatY = 0f
+            host.invalidate()
+        }
+    }
+
+    private fun startFlip() {
+        if (flipping) return
+        flipping = true
+        flipStart = System.currentTimeMillis()
+        active = false
+        haptic(false)
+        host.postInvalidateOnAnimation()
     }
 
     override fun onTouch(event: MotionEvent): Boolean {
-        if (phase == 3) return true
-        val (hx, hy) = if (spatX == 0f) spatHome() else spatX to spatY
+        if (phase == 3 || flipping) return true
+        val (hx, hy) =
+            if (spatX == 0f) spatHome()
+            else spatX to spatY
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 if (!near(event.x, event.y, hx, hy, w * 0.22f)) return true
@@ -370,37 +610,77 @@ class GrillScene(
                 spatY = event.y
                 lastX = event.x
                 lastY = event.y
-                downY = event.y
             }
+
             MotionEvent.ACTION_MOVE -> if (active) {
                 val dx = event.x - lastX
                 val dy = event.y - lastY
-                spatX = event.x
-                spatY = event.y
-                if ((phase == 0 || phase == 2) && SceneArt.workArea(w, h).contains(event.x, event.y)) {
-                    val delta = hypot(dx.toDouble(), dy.toDouble()).toFloat() / (w * step.repeat * 0.75f)
-                    if (phase == 0) cook = (cook + delta).coerceAtMost(0.48f)
-                    else cook = (cook + delta).coerceAtMost(1f)
-                    if (phase == 0 && cook >= 0.48f) {
-                        phase = 1
-                        haptic()
+
+                if (phase == 1) {
+                    val r = pattyRect()
+
+                    if (!underPatty) {
+                        spatX = event.x
+                        spatY = event.y
+                        val underZone = RectF(
+                            r.left,
+                            r.centerY(),
+                            r.right,
+                            r.bottom + h * 0.05f
+                        )
+                        if (underZone.contains(event.x, event.y)) {
+                            underPatty = true
+                            liftStartY = event.y
+                            spatX = r.centerX()
+                            spatY = r.bottom - r.height() * 0.12f
+                            haptic()
+                        }
+                    } else {
+                        spatX = r.centerX()
+                        spatY = event.y.coerceAtMost(r.bottom)
+                        if (liftStartY - event.y > h * 0.065f) {
+                            startFlip()
+                        }
                     }
-                    if (phase == 2 && cook >= 1f) {
-                        phase = 3
-                        finish()
+                } else {
+                    spatX = event.x
+                    spatY = event.y
+
+                    if (SceneArt.workArea(w, h).contains(event.x, event.y)) {
+                        val delta =
+                            hypot(dx.toDouble(), dy.toDouble()).toFloat() /
+                                (w * step.repeat * 0.75f)
+
+                        if (phase == 0) {
+                            cook = (cook + delta).coerceAtMost(0.48f)
+                            if (cook >= 0.48f) {
+                                phase = 1
+                                active = false
+                                spatX = 0f
+                                spatY = 0f
+                                haptic()
+                            }
+                        } else if (phase == 2) {
+                            cook = (cook + delta).coerceAtMost(1f)
+                            if (cook >= 1f) {
+                                phase = 3
+                                finish()
+                            }
+                        }
                     }
                 }
+
                 lastX = event.x
                 lastY = event.y
                 host.invalidate()
             }
+
             MotionEvent.ACTION_UP -> if (active) {
-                if (phase == 1 && downY - event.y > h * 0.10f && pattyRect().contains(event.x, min(event.y + h * 0.08f, h.toFloat()))) {
-                    phase = 2
-                    cook = 0.55f
-                    haptic()
-                }
                 active = false
+                if (phase != 1 || !underPatty) {
+                    spatX = 0f
+                    spatY = 0f
+                }
                 host.invalidate()
             }
         }
@@ -415,56 +695,103 @@ class AssemblyScene(
     dishParts: List<String>,
     onComplete: () -> Unit
 ) : BaseCookingScene(host, step, parts, dishParts, onComplete) {
-    private var placed = 0
     private var active = false
     private var itemX = 0f
     private var itemY = 0f
     private var done = false
+    private val placedPoints = mutableListOf<PointF>()
 
     override val instruction: String
         get() = if (done) "잘 올렸어요!" else step.instruction
 
     private fun home() = w * 0.50f to h * 0.80f
 
+    private fun itemSize(): Float =
+        w * (step.itemScale ?: if (step.input == "pepperoni") 0.11f else 0.30f)
+
+    private fun slotArea(): RectF {
+        val dish = SceneArt.dishArea(w, h)
+        val side = min(dish.width(), dish.height()) * 0.90f
+        return RectF(
+            dish.centerX() - side / 2f,
+            dish.centerY() - side / 2f,
+            dish.centerX() + side / 2f,
+            dish.centerY() + side / 2f
+        )
+    }
+
+    private fun slots(): List<PointF> {
+        val r = slotArea()
+        return listOf(
+            PointF(r.centerX() - r.width() * 0.20f, r.centerY() - r.height() * 0.19f),
+            PointF(r.centerX() + r.width() * 0.20f, r.centerY() - r.height() * 0.19f),
+            PointF(r.centerX(), r.centerY()),
+            PointF(r.centerX() - r.width() * 0.20f, r.centerY() + r.height() * 0.20f),
+            PointF(r.centerX() + r.width() * 0.20f, r.centerY() + r.height() * 0.20f)
+        )
+    }
+
     override fun draw(canvas: Canvas) {
         SceneArt.drawPlate(canvas, w, h)
         val dish = SceneArt.dishArea(w, h)
+        FoodPainter.drawDish(canvas, dishParts, parts, dish, assets)
 
-        if (done && step.output != null) {
-            part(step.output)?.let { FoodPainter.drawPart(canvas, it, dish, assets) }
-        } else {
-            FoodPainter.drawDish(canvas, dishParts, parts, dish, assets)
+        val p = part(step.input)
+        if (p != null) {
+            if (step.placementMode == "slots") {
+                val allSlots = slots()
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = w * 0.004f
+                paint.color = Color.argb(90, 95, 135, 95)
 
-            val offsets = listOf(
-                -0.18f to -0.06f,
-                0.17f to -0.03f,
-                -0.01f to 0.07f,
-                0.18f to 0.09f,
-                -0.16f to 0.10f
-            )
-            part(step.input)?.let { p ->
-                repeat(placed.coerceAtMost(offsets.size)) { i ->
-                    val (ox, oy) = offsets[i]
-                    val size = if (step.input == "pepperoni") w * 0.15f else w * 0.24f
-                    val cx = dish.centerX() + dish.width() * ox
-                    val cy = dish.centerY() + dish.height() * oy
-                    FoodPainter.drawPart(canvas, p, RectF(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f), assets)
+                for (i in placedPoints.size until min(step.repeat, allSlots.size)) {
+                    val s = allSlots[i]
+                    canvas.drawCircle(s.x, s.y, itemSize() * 0.38f, paint)
                 }
+                paint.style = Paint.Style.FILL
+            }
 
-                if (!done) {
-                    val (hx, hy) = home()
-                    val cx = if (itemX == 0f) hx else itemX
-                    val cy = if (itemY == 0f) hy else itemY
-                    val size = if (step.input == "pepperoni") w * 0.16f else w * 0.30f
-                    FoodPainter.drawPart(canvas, p, RectF(cx - size / 2f, cy - size * 0.38f, cx + size / 2f, cy + size * 0.38f), assets)
-                }
+            placedPoints.forEach { point ->
+                val size = itemSize()
+                FoodPainter.drawPart(
+                    canvas,
+                    p,
+                    RectF(
+                        point.x - size / 2f,
+                        point.y - size / 2f,
+                        point.x + size / 2f,
+                        point.y + size / 2f
+                    ),
+                    assets
+                )
+            }
+
+            if (!done) {
+                val (hx, hy) = home()
+                val cx = if (itemX == 0f) hx else itemX
+                val cy = if (itemY == 0f) hy else itemY
+                val size = itemSize()
+                FoodPainter.drawPart(
+                    canvas,
+                    p,
+                    RectF(
+                        cx - size / 2f,
+                        cy - size / 2f,
+                        cx + size / 2f,
+                        cy + size / 2f
+                    ),
+                    assets
+                )
             }
         }
     }
 
     override fun onTouch(event: MotionEvent): Boolean {
         if (done) return true
-        val (hx, hy) = if (itemX == 0f) home() else itemX to itemY
+        val (hx, hy) =
+            if (itemX == 0f) home()
+            else itemX to itemY
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 if (!near(event.x, event.y, hx, hy, w * 0.23f)) return true
@@ -472,16 +799,41 @@ class AssemblyScene(
                 itemX = event.x
                 itemY = event.y
             }
+
             MotionEvent.ACTION_MOVE -> if (active) {
                 itemX = event.x
                 itemY = event.y
                 host.invalidate()
             }
+
             MotionEvent.ACTION_UP -> if (active) {
-                if (SceneArt.dishArea(w, h).contains(event.x, event.y)) {
-                    placed += 1
+                val acceptedPoint =
+                    if (step.placementMode == "slots") {
+                        val area = slotArea()
+                        if (!area.contains(event.x, event.y)) null
+                        else {
+                            val available = slots()
+                                .take(step.repeat)
+                                .drop(placedPoints.size)
+                            available.minByOrNull { point ->
+                                hypot(
+                                    (event.x - point.x).toDouble(),
+                                    (event.y - point.y).toDouble()
+                                )
+                            }
+                        }
+                    } else {
+                        val dish = SceneArt.dishArea(w, h)
+                        if (dish.contains(event.x, event.y)) {
+                            PointF(dish.centerX(), dish.centerY())
+                        } else null
+                    }
+
+                if (acceptedPoint != null) {
+                    placedPoints += acceptedPoint
                     haptic()
-                    if (placed >= step.repeat) {
+
+                    if (placedPoints.size >= step.repeat) {
                         done = true
                         finish()
                     } else {
@@ -492,6 +844,7 @@ class AssemblyScene(
                     itemX = 0f
                     itemY = 0f
                 }
+
                 active = false
                 host.invalidate()
             }
@@ -507,7 +860,7 @@ class OvenScene(
     dishParts: List<String>,
     onComplete: () -> Unit
 ) : BaseCookingScene(host, step, parts, dishParts, onComplete) {
-    private var phase = 0 // 0 put in, 1 baking, 2 take out, 3 done
+    private var phase = 0
     private var active = false
     private var itemX = 0f
     private var itemY = 0f
@@ -521,6 +874,7 @@ class OvenScene(
         }
 
     private fun inputHome() = w * 0.50f to h * 0.80f
+
     private fun outputHome(): Pair<Float, Float> {
         val r = SceneArt.ovenInside(w, h)
         return r.centerX() to r.centerY()
@@ -537,21 +891,61 @@ class OvenScene(
                 val cx = if (itemX == 0f) hx else itemX
                 val cy = if (itemY == 0f) hy else itemY
                 val size = w * 0.40f
-                FoodPainter.drawPart(canvas, it, RectF(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f), assets)
+                FoodPainter.drawPart(
+                    canvas, it,
+                    RectF(
+                        cx - size / 2f,
+                        cy - size / 2f,
+                        cx + size / 2f,
+                        cy + size / 2f
+                    ),
+                    assets
+                )
             }
+
             1 -> part(step.input)?.let {
-                FoodPainter.drawPart(canvas, it, RectF(inside.centerX() - w * 0.18f, inside.centerY() - w * 0.18f, inside.centerX() + w * 0.18f, inside.centerY() + w * 0.18f), assets, 190)
+                FoodPainter.drawPart(
+                    canvas, it,
+                    RectF(
+                        inside.centerX() - w * 0.18f,
+                        inside.centerY() - w * 0.18f,
+                        inside.centerX() + w * 0.18f,
+                        inside.centerY() + w * 0.18f
+                    ),
+                    assets,
+                    190
+                )
             }
+
             2 -> part(step.output)?.let {
                 val (hx, hy) = outputHome()
                 val cx = if (itemX == 0f) hx else itemX
                 val cy = if (itemY == 0f) hy else itemY
                 val size = w * 0.40f
-                FoodPainter.drawPart(canvas, it, RectF(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f), assets)
+                FoodPainter.drawPart(
+                    canvas, it,
+                    RectF(
+                        cx - size / 2f,
+                        cy - size / 2f,
+                        cx + size / 2f,
+                        cy + size / 2f
+                    ),
+                    assets
+                )
             }
+
             3 -> part(step.output)?.let {
                 val r = SceneArt.trayArea(w, h)
-                FoodPainter.drawPart(canvas, it, RectF(r.centerX() - w * 0.20f, r.centerY() - w * 0.20f, r.centerX() + w * 0.20f, r.centerY() + w * 0.20f), assets)
+                FoodPainter.drawPart(
+                    canvas, it,
+                    RectF(
+                        r.centerX() - w * 0.20f,
+                        r.centerY() - w * 0.20f,
+                        r.centerX() + w * 0.20f,
+                        r.centerY() + w * 0.20f
+                    ),
+                    assets
+                )
             }
         }
     }
@@ -569,13 +963,18 @@ class OvenScene(
                 itemX = event.x
                 itemY = event.y
             }
+
             MotionEvent.ACTION_MOVE -> if (active) {
                 itemX = event.x
                 itemY = event.y
                 host.invalidate()
             }
+
             MotionEvent.ACTION_UP -> if (active) {
-                if (phase == 0 && SceneArt.ovenInside(w, h).contains(event.x, event.y)) {
+                if (
+                    phase == 0 &&
+                    SceneArt.ovenInside(w, h).contains(event.x, event.y)
+                ) {
                     phase = 1
                     itemX = 0f
                     itemY = 0f
@@ -584,13 +983,17 @@ class OvenScene(
                         phase = 2
                         host.invalidate()
                     }, 1300L)
-                } else if (phase == 2 && SceneArt.trayArea(w, h).contains(event.x, event.y)) {
+                } else if (
+                    phase == 2 &&
+                    SceneArt.trayArea(w, h).contains(event.x, event.y)
+                ) {
                     phase = 3
                     finish()
                 } else {
                     itemX = 0f
                     itemY = 0f
                 }
+
                 active = false
                 host.invalidate()
             }
@@ -611,13 +1014,15 @@ object CookingSceneFactory {
             step.action == ActionType.CUT ->
                 CutScene(host, step, parts, dishParts, onComplete)
 
-            step.action == ActionType.SPREAD && step.tool == "rolling_pin" ->
+            step.action == ActionType.SPREAD &&
+                step.tool == "rolling_pin" ->
                 DoughScene(host, step, parts, dishParts, onComplete)
 
             step.action == ActionType.SPREAD ->
                 SauceScene(host, step, parts, dishParts, onComplete)
 
-            step.action == ActionType.COOK && step.tool == "oven" ->
+            step.action == ActionType.COOK &&
+                step.tool == "oven" ->
                 OvenScene(host, step, parts, dishParts, onComplete)
 
             step.action == ActionType.COOK ->
