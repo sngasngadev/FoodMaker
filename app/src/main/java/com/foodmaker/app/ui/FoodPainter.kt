@@ -21,10 +21,16 @@ object FoodPainter {
         canvas: Canvas,
         part: PartDefinition,
         rect: RectF,
-        assets: AssetManager? = null
+        assets: AssetManager? = null,
+        alpha: Int = 255
     ) {
-        if (assets != null && drawAsset(canvas, part, rect, assets)) return
+        paint.alpha = alpha
+        if (assets != null && drawAsset(canvas, part, rect, assets)) {
+            paint.alpha = 255
+            return
+        }
         drawFallback(canvas, part, rect)
+        paint.alpha = 255
     }
 
     fun drawDish(
@@ -38,8 +44,8 @@ object FoodPainter {
 
         if (partIds.size == 1) {
             val part = parts[partIds.first()] ?: return
-            val insetX = area.width() * 0.05f
-            val insetY = area.height() * 0.05f
+            val insetX = area.width() * 0.04f
+            val insetY = area.height() * 0.04f
             drawPart(
                 canvas,
                 part,
@@ -50,15 +56,17 @@ object FoodPainter {
         }
 
         val count = partIds.size
-        val visualHeight = area.height() * 0.42f
+        val visualHeight = area.height() * 0.40f
         val spacing = min(area.height() * 0.09f, area.height() * 0.52f / (count - 1).coerceAtLeast(1))
         val totalHeight = visualHeight + spacing * (count - 1)
-        val startCenterY = area.centerY() - totalHeight / 2f + visualHeight / 2f
-        val widthInset = area.width() * 0.07f
+        val topCenterY = area.centerY() - totalHeight / 2f + visualHeight / 2f
+        val widthInset = area.width() * 0.055f
 
         partIds.forEachIndexed { index, id ->
             val part = parts[id] ?: return@forEachIndexed
-            val cy = startCenterY + spacing * index
+            // Recipe lists are bottom-to-top. Draw the first item visually lowest.
+            val visualIndex = count - 1 - index
+            val cy = topCenterY + spacing * visualIndex
             drawPart(
                 canvas,
                 part,
@@ -128,6 +136,7 @@ object FoodPainter {
             }
             "lettuce" -> drawLettuce(canvas, rect)
             "cheese" -> drawCheese(canvas, rect)
+            "shreds" -> drawShreds(canvas, rect)
             "nori" -> {
                 canvas.drawRoundRect(rect, 16f, 16f, paint)
                 part.accentHex?.let {
@@ -190,6 +199,38 @@ object FoodPainter {
             close()
         }
         canvas.drawPath(p, paint)
+    }
+
+    private fun drawShreds(canvas: Canvas, rect: RectF) {
+        val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeWidth = (rect.width() * 0.035f).coerceAtLeast(4f)
+            color = Color.rgb(214, 155, 25)
+        }
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeWidth = (rect.width() * 0.022f).coerceAtLeast(3f)
+            color = Color.rgb(255, 218, 76)
+        }
+        val lines = listOf(
+            floatArrayOf(.14f,.28f,.42f,.42f),
+            floatArrayOf(.36f,.22f,.70f,.34f),
+            floatArrayOf(.58f,.46f,.87f,.34f),
+            floatArrayOf(.18f,.55f,.48f,.65f),
+            floatArrayOf(.47f,.62f,.78f,.73f),
+            floatArrayOf(.25f,.78f,.58f,.72f),
+            floatArrayOf(.63f,.78f,.84f,.61f)
+        )
+        lines.forEach { l ->
+            val x1 = rect.left + rect.width()*l[0]
+            val y1 = rect.top + rect.height()*l[1]
+            val x2 = rect.left + rect.width()*l[2]
+            val y2 = rect.top + rect.height()*l[3]
+            canvas.drawLine(x1,y1,x2,y2,outline)
+            canvas.drawLine(x1,y1,x2,y2,fill)
+        }
     }
 
     private fun parseColor(value: String): Int =
