@@ -1100,6 +1100,10 @@ object CookingSceneFactory {
             step.action == ActionType.POUR && step.tool == "bowl" ->
                 BowlPourScene(host, step, parts, dishParts, onComplete)
 
+            step.action == ActionType.MIX &&
+                step.tool == "dough_bowl" ->
+                DoughPrepScene(host, step, parts, dishParts, onComplete)
+
             step.action == ActionType.MIX ->
                 MixScene(host, step, parts, dishParts, onComplete)
 
