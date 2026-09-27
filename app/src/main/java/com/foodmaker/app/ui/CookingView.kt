@@ -44,7 +44,7 @@ class CookingView(
         }
 
         val step = session.currentStep ?: return
-        FoodPainter.drawDish(canvas, session.dishParts, parts, dishArea)
+        FoodPainter.drawDish(canvas, session.dishParts, parts, dishArea, context.assets)
 
         paint.textAlign = Paint.Align.CENTER
         paint.color = Color.rgb(64, 53, 46)
@@ -60,7 +60,7 @@ class CookingView(
             val cx = if (dragX == 0f) defaultX else dragX
             val cy = if (dragY == 0f) defaultY else dragY
             val size = width * 0.28f
-            FoodPainter.drawPart(canvas, interactive, RectF(cx - size / 2f, cy - size * 0.35f, cx + size / 2f, cy + size * 0.35f))
+            FoodPainter.drawPart(canvas, interactive, RectF(cx - size / 2f, cy - size * 0.35f, cx + size / 2f, cy + size * 0.35f), context.assets)
         }
 
         drawHint(canvas, step.action)
@@ -129,7 +129,7 @@ class CookingView(
         paint.isFakeBoldText = true
         canvas.drawText("완성!", width / 2f, height * 0.18f, paint)
         paint.isFakeBoldText = false
-        FoodPainter.drawDish(canvas, session.recipe.previewParts, parts, RectF(width * 0.08f, height * 0.25f, width * 0.92f, height * 0.62f))
+        FoodPainter.drawDish(canvas, session.recipe.previewParts, parts, RectF(width * 0.08f, height * 0.25f, width * 0.92f, height * 0.62f), context.assets)
 
         val printRect = RectF(width * 0.16f, height * 0.70f, width * 0.84f, height * 0.80f)
         paint.color = Color.rgb(247, 179, 82)
