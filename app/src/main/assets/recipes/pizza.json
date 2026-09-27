@@ -1,15 +1,15 @@
 {
   "id":"pizza",
   "title":"피자",
-  "subtitle":"펴고, 바르고, 굽고, 자르기",
+  "subtitle":"펴고, 바르고, 올리고, 굽기",
   "previewParts":["pizza_baked"],
-  "printParts":["pizza_dough","pizza_sauced","pizza_cheese","pepperoni","pepperoni","pepperoni","pepperoni","pizza_slice"],
+  "printParts":["pizza_dough","pizza_sauced","cheese_shreds","pepperoni","pepperoni","pepperoni","pepperoni","pizza_slice"],
   "steps":[
-    {"id":"spread_dough","action":"SPREAD","input":"dough_ball","output":"pizza_dough","instruction":"반죽을 둥글게 펴요","repeat":2,"dishAfter":["pizza_dough"]},
-    {"id":"spread_sauce","action":"SPREAD","input":"pizza_sauced","output":"pizza_sauced","instruction":"토마토 소스를 발라요","repeat":2,"dishAfter":["pizza_sauced"]},
-    {"id":"place_cheese","action":"PLACE","input":"pizza_cheese","instruction":"치즈를 듬뿍 올려요","repeat":1,"dishAfter":["pizza_cheese"]},
+    {"id":"spread_dough","action":"SPREAD","input":"dough_ball","output":"pizza_dough","tool":"rolling_pin","instruction":"반죽을 둥글게 펴요","repeat":2,"dishAfter":["pizza_dough"]},
+    {"id":"spread_sauce","action":"SPREAD","input":"pizza_dough","output":"pizza_sauced","tool":"spoon","instruction":"토마토 소스를 발라요","repeat":2,"dishAfter":["pizza_sauced"]},
+    {"id":"place_cheese","action":"PLACE","input":"cheese_shreds","output":"pizza_cheese","instruction":"치즈를 듬뿍 올려요","repeat":1,"dishAfter":["pizza_cheese"]},
     {"id":"place_pepperoni","action":"PLACE","input":"pepperoni","output":"pizza_topped","instruction":"페퍼로니를 올려요","repeat":3,"dishAfter":["pizza_topped"]},
-    {"id":"bake_pizza","action":"COOK","input":"pizza_topped","output":"pizza_baked","instruction":"피자를 노릇하게 구워요","repeat":2,"dishAfter":["pizza_baked"]},
-    {"id":"cut_pizza","action":"CUT","input":"pizza_baked","output":"pizza_slice","instruction":"피자를 조각으로 잘라요","repeat":4,"dishAfter":["pizza_slice"]}
+    {"id":"bake_pizza","action":"COOK","input":"pizza_topped","output":"pizza_baked","tool":"oven","instruction":"피자를 오븐에 넣어요","repeat":1,"dishAfter":["pizza_baked"]},
+    {"id":"cut_pizza","action":"CUT","input":"pizza_baked","output":"pizza_slice","tool":"pizza_cutter","instruction":"피자를 조각으로 잘라요","repeat":4,"dishAfter":["pizza_slice"]}
   ]
 }
