@@ -125,7 +125,7 @@ class RecipePrintAdapter(
                 cell.right - cell.width() * 0.16f,
                 cell.bottom - cell.height() * 0.24f
             )
-            FoodPainter.drawPart(canvas, part, partRect)
+            FoodPainter.drawPart(canvas, part, partRect, context.assets)
 
             paint.color = Color.DKGRAY
             paint.textAlign = Paint.Align.CENTER
