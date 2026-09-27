@@ -1,10 +1,31 @@
-# FoodMaker
+# PizzaMaker
 
-아동용 오프라인 요리 놀이 Android 앱 프로토타입.
+FoodMaker 저장소의 PizzaMaker 브랜치에서 독립적으로 개발하는 피자 만들기 게임입니다.
 
-## Prototype
-- Native Android / Kotlin
-- 3 foods: hamburger, pizza, sushi
-- Data-driven recipe steps
-- Reusable cooking actions (PLACE, CUT, COOK, FLIP, SPREAD, ROLL, POUR)
-- Printable paper-play parts
+## 원칙
+
+- 기존 main 앱 코드를 재사용하지 않고 처음부터 새로 구성
+- 사용자가 제공한 크레용/손그림 피자 시트를 아트 디렉션 기준으로 사용
+- 도우, 소스, 치즈, 토핑뿐 아니라 주방, 그릇, 밀대, 스푼, 오븐, 피자커터까지 같은 손그림 문법으로 렌더링
+- 임시 placeholder 에셋 없이 실제 런타임에서 사용하는 최종 스타일 자산으로 구성
+- 버튼 중심 UI보다 드래그, 문지르기, 돌리기, 자르기 중심
+- 어린이 사용을 가정해 판정을 넓게 잡고 실패 상태를 두지 않음
+
+## 플레이 루프
+
+1. 밀가루, 물, 오일을 그릇에 드래그
+2. 숟가락을 돌려 반죽 섞기
+3. 밀대로 반죽 펴기
+4. 토마토 소스를 손가락 경로대로 바르기
+5. 치즈를 뿌리기
+6. 페퍼로니, 버섯, 피망, 올리브, 양파 자유 배치
+7. 피자를 직접 오븐에 넣고 굽기
+8. 커터로 서로 다른 방향 세 번 자르기
+9. 여섯 조각을 눌러 먹기
+10. 완성 연출 후 다시 만들기
+
+## 구현
+
+Android 네이티브 Kotlin 커스텀 View 기반이다. 외부 상용 게임의 이미지, 코드, 사운드는 포함하지 않는다. 직접 조작형 어린이 요리놀이의 밀도와 반응성을 목표로 하되 구현과 자산은 PizzaMaker 전용으로 작성한다.
+
+GitHub Actions Android CI는 PizzaMaker 브랜치 push마다 Debug APK를 빌드한다.
