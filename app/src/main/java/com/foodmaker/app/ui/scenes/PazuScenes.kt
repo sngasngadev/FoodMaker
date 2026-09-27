@@ -454,11 +454,11 @@ class BurgerGrillScene(
 
     override val instruction:String
         get()=when{
+            flipping->"휙!"
             phase==0->"패티를 집어 그릴 위에 올려요"
             phase==1->"지글지글 익는 중..."
             phase==2&&!under->"뒤집개를 패티 밑으로 넣어요"
             phase==2&&under->"그대로 위로 들어 올려요"
-            flipping->"휙!"
             phase==3->"반대쪽도 익는 중..."
             else->"패티가 완성됐어요!"
         }
@@ -489,9 +489,9 @@ class BurgerGrillScene(
             flipping->drawFlip(canvas)
             else->{
                 val progress=when(phase){
-                    1->((System.currentTimeMillis()-cookStart)/1300f).coerceIn(0f,.48f)
+                    1->(((System.currentTimeMillis()-cookStart)/1300f).coerceIn(0f,1f)*.48f)
                     2->.52f
-                    3->(.52f+((System.currentTimeMillis()-cookStart)/1200f).coerceIn(0f,.48f)).coerceAtMost(1f)
+                    3->(.52f+((System.currentTimeMillis()-cookStart)/1200f).coerceIn(0f,1f)*.48f).coerceAtMost(1f)
                     else->1f
                 }
                 drawMorph(canvas,step.input,step.output,pattyRect(),progress)
@@ -621,6 +621,275 @@ class BurgerGrillScene(
                 if(!under){spatX=0f;spatY=0f}
                 host.invalidate()
             }
+        }
+        return true
+    }
+}
+
+class DoughPrepScene(
+    host: View,
+    step: RecipeStep,
+    parts: Map<String, PartDefinition>,
+    dishParts: List<String>,
+    onComplete: () -> Unit
+) : BaseCookingScene(host, step, parts, dishParts, onComplete) {
+    private var phase = 0 // 0 flour, 1 water, 2 mix, 3 done
+    private var active = false
+    private var itemX = 0f
+    private var itemY = 0f
+    private var pouringSince = 0L
+    private var spoonX = 0f
+    private var spoonY = 0f
+    private var lastAngle = 0.0
+    private var angularTravel = 0.0
+
+    override val instruction: String
+        get() = when (phase) {
+            0 -> "밀가루를 그릇에 부어요"
+            1 -> "물을 넣어요"
+            2 -> "숟가락으로 빙글빙글 섞어요"
+            else -> "반죽이 완성됐어요!"
+        }
+
+    private fun bowlRect() = RectF(w * .25f, h * .37f, w * .75f, h * .67f)
+    private fun sourceHome() = w * .78f to h * .75f
+    private fun spoonHome() = w * .69f to h * .64f
+
+    override fun draw(canvas: Canvas) {
+        SceneArt.drawBoard(canvas, w, h)
+        drawBowl(canvas)
+
+        when (phase) {
+            0, 1 -> {
+                val (hx, hy) = sourceHome()
+                val cx = if (itemX == 0f) hx else itemX
+                val cy = if (itemY == 0f) hy else itemY
+                drawIngredientContainer(canvas, cx, cy, phase == 0)
+
+                if (pouringSince > 0L) {
+                    val t = ((System.currentTimeMillis() - pouringSince) / 750f).coerceIn(0f, 1f)
+                    drawStream(canvas, cx, cy, phase == 0, t)
+                    if (t < 1f) {
+                        host.postInvalidateOnAnimation()
+                    } else {
+                        phase += 1
+                        active = false
+                        itemX = 0f
+                        itemY = 0f
+                        pouringSince = 0L
+                        haptic()
+                        host.invalidate()
+                    }
+                }
+            }
+
+            2 -> {
+                drawMixture(canvas)
+                val (hx, hy) = spoonHome()
+                SceneArt.drawSpoon(
+                    canvas, w,
+                    if (spoonX == 0f) hx else spoonX,
+                    if (spoonY == 0f) hy else spoonY
+                )
+            }
+
+            3 -> {
+                part(step.output)?.let {
+                    FoodPainter.drawPart(
+                        canvas, it,
+                        RectF(w * .37f, h * .45f, w * .63f, h * .60f),
+                        assets
+                    )
+                }
+            }
+        }
+    }
+
+    private fun drawBowl(canvas: Canvas) {
+        val b = bowlRect()
+        paint.color = Color.rgb(112, 100, 165)
+        canvas.drawOval(b, paint)
+        paint.color = Color.rgb(166, 151, 213)
+        canvas.drawOval(
+            RectF(
+                b.left + b.width() * .06f,
+                b.top + b.height() * .06f,
+                b.right - b.width() * .06f,
+                b.centerY()
+            ),
+            paint
+        )
+
+        when (phase) {
+            1 -> {
+                paint.color = Color.rgb(244, 233, 211)
+                canvas.drawOval(
+                    RectF(
+                        b.left + b.width() * .18f,
+                        b.top + b.height() * .18f,
+                        b.right - b.width() * .18f,
+                        b.bottom - b.height() * .31f
+                    ),
+                    paint
+                )
+            }
+            2, 3 -> {
+                paint.color = Color.rgb(226, 199, 157)
+                canvas.drawOval(
+                    RectF(
+                        b.left + b.width() * .14f,
+                        b.top + b.height() * .16f,
+                        b.right - b.width() * .14f,
+                        b.bottom - b.height() * .25f
+                    ),
+                    paint
+                )
+            }
+        }
+    }
+
+    private fun drawIngredientContainer(canvas: Canvas, cx: Float, cy: Float, flour: Boolean) {
+        val rw = if (flour) w * .22f else w * .15f
+        val rh = if (flour) h * .14f else h * .15f
+        canvas.save()
+        if (pouringSince > 0L) canvas.rotate(-45f, cx, cy)
+        paint.color = if (flour) Color.rgb(242, 211, 133) else Color.rgb(190, 226, 240)
+        canvas.drawRoundRect(RectF(cx-rw/2,cy-rh/2,cx+rw/2,cy+rh/2),22f,22f,paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = w * .006f
+        paint.color = Color.rgb(91, 76, 61)
+        canvas.drawRoundRect(RectF(cx-rw/2,cy-rh/2,cx+rw/2,cy+rh/2),22f,22f,paint)
+        paint.style = Paint.Style.FILL
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = w * .032f
+        paint.isFakeBoldText = true
+        paint.color = Color.rgb(75, 62, 51)
+        canvas.drawText(if(flour)"밀가루" else "물",cx,cy+w*.012f,paint)
+        paint.isFakeBoldText = false
+        canvas.restore()
+    }
+
+    private fun drawStream(canvas: Canvas, cx: Float, cy: Float, flour: Boolean, t: Float) {
+        val b = bowlRect()
+        val ex = b.centerX()
+        val ey = b.top + b.height() * .20f
+        if (flour) {
+            paint.color = Color.rgb(247, 235, 214)
+            val count = (14 * t).toInt().coerceAtLeast(3)
+            repeat(count) { i ->
+                val f = (i + 1f) / (count + 1f)
+                val x = cx + (ex - cx) * f + sin(i * 1.7f) * w * .012f
+                val y = cy + (ey - cy) * f
+                canvas.drawCircle(x,y,w*.009f,paint)
+            }
+        } else {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = w * .018f
+            paint.strokeCap = Paint.Cap.ROUND
+            paint.color = Color.rgb(119, 190, 222)
+            canvas.drawLine(cx-w*.03f,cy,ex,ey,paint)
+            paint.style = Paint.Style.FILL
+            paint.strokeCap = Paint.Cap.BUTT
+        }
+    }
+
+    private fun drawMixture(canvas: Canvas) {
+        val b = bowlRect()
+        val progress = (angularTravel / (2 * PI * step.repeat.coerceAtLeast(1))).toFloat().coerceIn(0f,1f)
+        paint.color = Color.rgb(
+            (231 - 15 * progress).toInt(),
+            (205 - 18 * progress).toInt(),
+            (165 - 18 * progress).toInt()
+        )
+        canvas.drawOval(
+            RectF(
+                b.left+b.width()*.15f,
+                b.top+b.height()*.19f,
+                b.right-b.width()*.15f,
+                b.bottom-b.height()*.24f
+            ),paint
+        )
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = w * .010f
+        paint.color = Color.argb(120, 151, 113, 73)
+        repeat(3){i->
+            val rr=RectF(
+                b.centerX()-w*(.09f+i*.025f),
+                b.centerY()-w*(.05f+i*.013f),
+                b.centerX()+w*(.09f+i*.025f),
+                b.centerY()+w*(.05f+i*.013f)
+            )
+            canvas.drawArc(rr,20f+i*40f,220f,false,paint)
+        }
+        paint.style = Paint.Style.FILL
+    }
+
+    override fun onTouch(event: MotionEvent): Boolean {
+        if (phase == 3) return true
+
+        if (phase == 0 || phase == 1) {
+            val (hx, hy) = if (itemX == 0f) sourceHome() else itemX to itemY
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (!near(event.x,event.y,hx,hy,w*.24f)) return true
+                    active = true
+                    itemX = event.x
+                    itemY = event.y
+                }
+                MotionEvent.ACTION_MOVE -> if (active && pouringSince == 0L) {
+                    itemX = event.x
+                    itemY = event.y
+                    val b = bowlRect()
+                    val zone = RectF(b.left,b.top-h*.15f,b.right,b.centerY())
+                    if (zone.contains(event.x,event.y)) {
+                        pouringSince = System.currentTimeMillis()
+                        haptic()
+                    }
+                    host.invalidate()
+                }
+                MotionEvent.ACTION_UP -> {
+                    active = false
+                    if (pouringSince == 0L) {
+                        itemX = 0f
+                        itemY = 0f
+                    }
+                    host.invalidate()
+                }
+            }
+            return true
+        }
+
+        val b = bowlRect()
+        val cx = b.centerX()
+        val cy = b.centerY()
+        val (hx,hy)=if(spoonX==0f)spoonHome() else spoonX to spoonY
+        when(event.action){
+            MotionEvent.ACTION_DOWN->{
+                if(!near(event.x,event.y,hx,hy,w*.22f))return true
+                active=true
+                spoonX=event.x
+                spoonY=event.y
+                lastAngle=atan2((event.y-cy).toDouble(),(event.x-cx).toDouble())
+            }
+            MotionEvent.ACTION_MOVE->if(active){
+                spoonX=event.x
+                spoonY=event.y
+                if(b.contains(event.x,event.y)){
+                    val a=atan2((event.y-cy).toDouble(),(event.x-cx).toDouble())
+                    var d=a-lastAngle
+                    while(d>PI)d-=2*PI
+                    while(d< -PI)d+=2*PI
+                    angularTravel+=abs(d)
+                    lastAngle=a
+                    if(angularTravel>=2*PI*step.repeat.coerceAtLeast(1)){
+                        phase=3
+                        haptic(false)
+                        finish()
+                    }
+                }
+                host.invalidate()
+            }
+            MotionEvent.ACTION_UP->active=false
         }
         return true
     }
