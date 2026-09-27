@@ -5,7 +5,7 @@
   "previewParts":["bun_bottom","patty_cooked","cheese","lettuce","tomato_slices","bun_top"],
   "printParts":["bun_bottom","patty_cooked","cheese","lettuce","tomato_slices","bun_top"],
   "steps":[
-    {"id":"cook_patty","action":"COOK","input":"patty_raw","output":"patty_cooked","tool":"spatula","instruction":"패티를 맛있게 구워요","repeat":2,"dishAfter":[]},
+    {"id":"cook_patty","action":"COOK","input":"patty_raw","output":"patty_cooked","tool":"spatula","instruction":"패티를 맛있게 구워요","repeat":4,"dishAfter":[]},
     {"id":"cut_tomato","action":"CUT","input":"tomato_whole","output":"tomato_slices","tool":"knife","instruction":"토마토를 썰어요","repeat":3,"dishAfter":[]},
     {"id":"place_bun","action":"PLACE","input":"bun_bottom","instruction":"아랫빵을 놓아요","repeat":1,"dishAfter":["bun_bottom"]},
     {"id":"place_patty","action":"PLACE","input":"patty_cooked","instruction":"패티를 올려요","repeat":1,"dishAfter":["bun_bottom","patty_cooked"]},
