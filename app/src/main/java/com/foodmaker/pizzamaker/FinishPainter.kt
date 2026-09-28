@@ -59,7 +59,7 @@ class FinishPainter(
             a.box(c, RectF(330f, 1610f, 750f, 1740f), 52f, Color.rgb(245, 190, 70), 410)
             a.text(c, "오븐으로!", 540f, 1691f, 42f)
         } else {
-            a.text(c, "토핑을 \${4 - g.toppings.size}개만 더 올려봐", 540f, 1685f, 29f, Color.rgb(88, 71, 54))
+            a.text(c, "토핑을 ${4 - g.toppings.size}개만 더 올려봐", 540f, 1685f, 29f, Color.rgb(88, 71, 54))
         }
     }
 
