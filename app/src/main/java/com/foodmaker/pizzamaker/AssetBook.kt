@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipInputStream
+import kotlin.math.roundToInt
 
 enum class ToppingType { PEPPERONI, MUSHROOM, PEPPER, OLIVE, ONION }
 
@@ -27,9 +28,11 @@ class AssetBook(context: Context) {
     val plate = asset("tool_plate")
 
     val flourBag = asset("ingredient_flour_bag")
+    val flourPile = asset("ingredient_flour_pile")
     val oilBottle = asset("ingredient_oil_bottle")
     val waterCup = asset("ingredient_water_cup")
     val doughBall = asset("ingredient_dough_ball")
+    val doughRound = asset("ingredient_dough_round")
     val sauceBowl = asset("ingredient_sauce_bowl")
     val shreddedCheese = asset("ingredient_shredded_cheese")
 
@@ -38,10 +41,11 @@ class AssetBook(context: Context) {
     val pizzaCheese = asset("pizza_stage_cheese")
     val pizzaBaked = asset("pizza_stage_baked_plain")
     val pizzaTopped = asset("pizza_stage_topped")
+    val pizzaCut4 = asset("pizza_stage_cut_4")
     val pizzaCut6 = asset("pizza_stage_cut_6")
     val pizzaCut6Spread = asset("pizza_stage_cut_6_spread")
 
-    val toppings: Map<ToppingType, Bitmap> = mapOf(
+    val toppingGroups: Map<ToppingType, Bitmap> = mapOf(
         ToppingType.PEPPERONI to asset("topping_pepperoni"),
         ToppingType.MUSHROOM to asset("topping_mushroom"),
         ToppingType.PEPPER to asset("topping_pepper_green"),
@@ -49,11 +53,29 @@ class AssetBook(context: Context) {
         ToppingType.ONION to asset("topping_onion")
     )
 
+    // The generated sheets contain small groups. The game places one food piece at a time,
+    // so crop a representative single piece for direct manipulation.
+    val toppings: Map<ToppingType, Bitmap> = mapOf(
+        ToppingType.PEPPERONI to crop(toppingGroups.getValue(ToppingType.PEPPERONI), .10f, .00f, .67f, .60f),
+        ToppingType.MUSHROOM to crop(toppingGroups.getValue(ToppingType.MUSHROOM), .18f, .00f, .70f, .56f),
+        ToppingType.PEPPER to crop(toppingGroups.getValue(ToppingType.PEPPER), .00f, .00f, .60f, .63f),
+        ToppingType.OLIVE to crop(toppingGroups.getValue(ToppingType.OLIVE), .20f, .00f, .73f, .54f),
+        ToppingType.ONION to crop(toppingGroups.getValue(ToppingType.ONION), .29f, .00f, .94f, .64f)
+    )
+
     val effects: List<Bitmap> = images
         .filterKeys { it.startsWith("fx_") }
         .toSortedMap()
         .values
         .toList()
+
+    private fun crop(bitmap: Bitmap, l: Float, t: Float, r: Float, b: Float): Bitmap {
+        val x = (bitmap.width * l).roundToInt().coerceIn(0, bitmap.width - 1)
+        val y = (bitmap.height * t).roundToInt().coerceIn(0, bitmap.height - 1)
+        val right = (bitmap.width * r).roundToInt().coerceIn(x + 1, bitmap.width)
+        val bottom = (bitmap.height * b).roundToInt().coerceIn(y + 1, bitmap.height)
+        return Bitmap.createBitmap(bitmap, x, y, right - x, bottom - y)
+    }
 
     private fun loadPack(context: Context): Map<String, Bitmap> {
         val result = linkedMapOf<String, Bitmap>()
