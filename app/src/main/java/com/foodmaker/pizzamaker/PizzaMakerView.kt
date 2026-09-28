@@ -286,14 +286,17 @@ class PizzaMakerView(context: Context) : View(context) {
                 g.selected?.let { t ->
                     if (d(x, y, 540f, 830f) < 315) {
                         val b = assets.toppings.getValue(t)
-                        val halfW = when (t) {
-                            ToppingType.ONION -> .14f
-                            ToppingType.MUSHROOM -> .13f
-                            else -> .11f
+                        val vx = (x - 540f) / (350f * 1.55f)
+                        val vy = (y - 830f) / (350f * 1.55f)
+                        val maxRadius = when (t) {
+                            ToppingType.ONION -> .39f
+                            ToppingType.MUSHROOM -> .40f
+                            else -> .43f
                         }
-                        val max = .48f - halfW
-                        val nx = ((x - 540) / (350 * 1.55f)).coerceIn(-max, max)
-                        val ny = ((y - 830) / (350 * 1.55f)).coerceIn(-max, max)
+                        val len = hypot(vx, vy)
+                        val factor = if (len > maxRadius && len > 0f) maxRadius / len else 1f
+                        val nx = vx * factor
+                        val ny = vy * factor
                         val s = g.toppings.size * 47 + t.ordinal * 19 + b.width
                         g.toppings.add(
                             ToppingPiece(
