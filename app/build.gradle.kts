@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -37,7 +39,7 @@ val preparePizzaAssets = tasks.register("preparePizzaAssets") {
         val encoded = chunks.files.sortedBy { it.name }.joinToString("") { it.readText() }
         val output = generatedPizzaAssetsDir.get().file("pizzamaker_assets.zip").asFile
         output.parentFile.mkdirs()
-        output.writeBytes(java.util.Base64.getDecoder().decode(encoded))
+        output.writeBytes(Base64.getDecoder().decode(encoded))
     }
 }
 
