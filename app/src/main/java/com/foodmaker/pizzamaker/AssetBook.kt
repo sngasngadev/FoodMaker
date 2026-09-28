@@ -3,9 +3,11 @@ package com.foodmaker.pizzamaker
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import java.io.ByteArrayOutputStream
+import java.util.ArrayDeque
 import java.util.zip.ZipInputStream
-import kotlin.math.roundToInt
+import kotlin.math.max
 
 enum class ToppingType { PEPPERONI, MUSHROOM, PEPPER, OLIVE, ONION }
 
@@ -53,15 +55,14 @@ class AssetBook(context: Context) {
         ToppingType.ONION to asset("topping_onion")
     )
 
-    // The generated sheets contain small groups. The game places one food piece at a time,
-    // so crop a representative single piece for direct manipulation.
-    val toppings: Map<ToppingType, Bitmap> = mapOf(
-        ToppingType.PEPPERONI to crop(toppingGroups.getValue(ToppingType.PEPPERONI), .10f, .00f, .67f, .60f),
-        ToppingType.MUSHROOM to crop(toppingGroups.getValue(ToppingType.MUSHROOM), .18f, .00f, .70f, .56f),
-        ToppingType.PEPPER to crop(toppingGroups.getValue(ToppingType.PEPPER), .00f, .00f, .60f, .63f),
-        ToppingType.OLIVE to crop(toppingGroups.getValue(ToppingType.OLIVE), .20f, .00f, .73f, .54f),
-        ToppingType.ONION to crop(toppingGroups.getValue(ToppingType.ONION), .29f, .00f, .94f, .64f)
-    )
+    /**
+     * Each generated topping asset is a transparent group containing several pieces.
+     * Extract one complete connected alpha component, then add transparent padding.
+     * This avoids the hard rectangular cuts that were visible with percentage crops.
+     */
+    val toppings: Map<ToppingType, Bitmap> = toppingGroups.mapValues { (_, group) ->
+        extractSinglePiece(group)
+    }
 
     val effects: List<Bitmap> = images
         .filterKeys { it.startsWith("fx_") }
@@ -69,12 +70,97 @@ class AssetBook(context: Context) {
         .values
         .toList()
 
-    private fun crop(bitmap: Bitmap, l: Float, t: Float, r: Float, b: Float): Bitmap {
-        val x = (bitmap.width * l).roundToInt().coerceIn(0, bitmap.width - 1)
-        val y = (bitmap.height * t).roundToInt().coerceIn(0, bitmap.height - 1)
-        val right = (bitmap.width * r).roundToInt().coerceIn(x + 1, bitmap.width)
-        val bottom = (bitmap.height * b).roundToInt().coerceIn(y + 1, bitmap.height)
-        return Bitmap.createBitmap(bitmap, x, y, right - x, bottom - y)
+    private data class Component(
+        val minX: Int,
+        val minY: Int,
+        val maxX: Int,
+        val maxY: Int,
+        val pixels: Int
+    )
+
+    private fun extractSinglePiece(bitmap: Bitmap): Bitmap {
+        val w = bitmap.width
+        val h = bitmap.height
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        val seen = BooleanArray(w * h)
+        val queue = ArrayDeque<Int>()
+        val components = mutableListOf<Component>()
+
+        fun opaque(index: Int): Boolean = Color.alpha(pixels[index]) > 42
+
+        for (start in pixels.indices) {
+            if (seen[start] || !opaque(start)) continue
+
+            seen[start] = true
+            queue.add(start)
+            var minX = w
+            var minY = h
+            var maxX = 0
+            var maxY = 0
+            var count = 0
+
+            while (queue.isNotEmpty()) {
+                val index = queue.removeFirst()
+                val x = index % w
+                val y = index / w
+                count++
+                if (x < minX) minX = x
+                if (y < minY) minY = y
+                if (x > maxX) maxX = x
+                if (y > maxY) maxY = y
+
+                if (x > 0) {
+                    val n = index - 1
+                    if (!seen[n] && opaque(n)) { seen[n] = true; queue.add(n) }
+                }
+                if (x + 1 < w) {
+                    val n = index + 1
+                    if (!seen[n] && opaque(n)) { seen[n] = true; queue.add(n) }
+                }
+                if (y > 0) {
+                    val n = index - w
+                    if (!seen[n] && opaque(n)) { seen[n] = true; queue.add(n) }
+                }
+                if (y + 1 < h) {
+                    val n = index + w
+                    if (!seen[n] && opaque(n)) { seen[n] = true; queue.add(n) }
+                }
+            }
+
+            if (count > 80) {
+                components += Component(minX, minY, maxX, maxY, count)
+            }
+        }
+
+        val chosen = components.maxByOrNull { it.pixels } ?: return bitmap
+        val objectW = chosen.maxX - chosen.minX + 1
+        val objectH = chosen.maxY - chosen.minY + 1
+        val pad = max(10, (max(objectW, objectH) * .12f).toInt())
+
+        val cropLeft = (chosen.minX - pad).coerceAtLeast(0)
+        val cropTop = (chosen.minY - pad).coerceAtLeast(0)
+        val cropRight = (chosen.maxX + pad + 1).coerceAtMost(w)
+        val cropBottom = (chosen.maxY + pad + 1).coerceAtMost(h)
+
+        val crop = Bitmap.createBitmap(
+            bitmap,
+            cropLeft,
+            cropTop,
+            cropRight - cropLeft,
+            cropBottom - cropTop
+        )
+
+        // Guarantee breathing room even when the source component touches an edge.
+        val extra = max(8, (max(crop.width, crop.height) * .08f).toInt())
+        val padded = Bitmap.createBitmap(
+            crop.width + extra * 2,
+            crop.height + extra * 2,
+            Bitmap.Config.ARGB_8888
+        )
+        android.graphics.Canvas(padded).drawBitmap(crop, extra.toFloat(), extra.toFloat(), null)
+        return padded
     }
 
     private fun loadPack(context: Context): Map<String, Bitmap> {
