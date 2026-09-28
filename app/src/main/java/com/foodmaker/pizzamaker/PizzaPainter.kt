@@ -111,7 +111,7 @@ class PizzaPainter(private val assets: AssetBook) {
      * From this point the exact same composition is reused through oven, cutting,
      * eating and completion instead of reconstructing it at each stage.
      */
-    fun composePizza(toppings: List<ToppingPiece>, baked: Boolean, size: Int = 768): Bitmap {
+    fun composePizza(toppings: List<ToppingPiece>, isBaked: Boolean, size: Int = 768): Bitmap {
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         val center = size / 2f
