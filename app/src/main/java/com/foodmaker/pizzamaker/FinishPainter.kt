@@ -41,8 +41,8 @@ class FinishPainter(
         val signature = toppingSignature(g)
         if (signature != cachedSignature) {
             cachedSignature = signature
-            cachedRawPizza = f.composePizza(g.toppings, baked = false)
-            cachedBakedPizza = f.composePizza(g.toppings, baked = true)
+            cachedRawPizza = f.composePizza(g.toppings, isBaked = false)
+            cachedBakedPizza = f.composePizza(g.toppings, isBaked = true)
         }
         return if (baked) requireNotNull(cachedBakedPizza) else requireNotNull(cachedRawPizza)
     }
