@@ -51,14 +51,58 @@ class PrepPainter(
     }
 
     private fun mix(c: Canvas, g: GameState) {
-        asset(c, assets.bowl, 540f, 1160f, 360f)
+        val bowlX = 540f
+        val bowlY = 1155f
+        val bowlH = 390f
+
+        // Back of the bowl first.
+        asset(c, assets.bowl, bowlX, bowlY, bowlH)
+
+        // Every ingredient produces an immediate visible change inside the bowl.
+        c.save()
+        c.clipPath(Path().apply {
+            addOval(RectF(340f, 1005f, 740f, 1245f), Path.Direction.CW)
+        })
+
+        if (g.mixAdded[0]) {
+            val pulse = addedPulse(g.mixAddedAt[0])
+            asset(c, assets.flourPile, 540f, 1125f, 165f * pulse, alpha = 245)
+        }
+
+        if (g.mixAdded[1]) {
+            p.style = Paint.Style.FILL
+            p.color = Color.argb(if (g.mixAdded[0]) 78 else 135, 104, 194, 225)
+            c.drawOval(RectF(390f, 1090f, 690f, 1228f), p)
+        }
+
+        if (g.mixAdded[2]) {
+            p.style = Paint.Style.FILL
+            p.color = Color.argb(100, 244, 206, 64)
+            c.drawOval(RectF(430f, 1100f, 680f, 1228f), p)
+        }
 
         if (g.mixAdded.all { it }) {
-            asset(c, assets.doughBall, 540f, 1125f, 210f + g.stir * 45f)
-            asset(c, assets.spoon, if (g.toolHeld) g.touchX else 715f, if (g.toolHeld) g.touchY else 1080f, 270f, -22f)
-            if (g.stir >= 1f) hint(c, 540f, 1430f, 540f, 1580f)
-            return
+            val t = g.stir.coerceIn(0f, 1f)
+            val wetAlpha = (80 + 175 * t).toInt()
+            val h = 135f + 95f * t
+            asset(c, assets.doughBall, 540f, 1130f, h, alpha = wetAlpha)
+            if (t > .35f) {
+                p.style = Paint.Style.FILL
+                p.color = Color.argb((75 * (1f - t)).toInt(), 255, 244, 219)
+                c.drawOval(RectF(405f, 1080f, 675f, 1228f), p)
+            }
         }
+        c.restore()
+
+        // Spoon belongs between the contents and the front wall of the bowl.
+        if (g.mixAdded.all { it }) {
+            val spoonX = if (g.toolHeld) g.touchX else 710f
+            val spoonY = if (g.toolHeld) g.touchY else 1085f
+            asset(c, assets.spoon, spoonX, spoonY, 275f, if (g.toolHeld) -28f else -22f)
+        }
+
+        // Front wall occludes food/tool and makes them read as being inside the bowl.
+        f.bowlFront(c, bowlX, bowlY, bowlH)
 
         drawIngredient(c, g, 0, assets.flourBag, 230f, 640f, 245f, "밀가루")
         drawIngredient(c, g, 1, assets.waterCup, 540f, 640f, 225f, "물")
@@ -73,22 +117,44 @@ class PrepPainter(
             asset(c, b, g.touchX, g.touchY, 230f, if (g.dragIngredient == 2) -10f else 0f)
         }
 
-        if (SystemClock.uptimeMillis() - g.lastInput > 1500) hint(c, 230f, 850f, 470f, 1030f)
+        if (g.mixAdded.all { it }) {
+            if (g.stir >= 1f) completeMark(c, 540f, 1470f)
+            else if (!g.toolHeld) hint(c, 710f, 1090f, 555f, 1150f)
+        } else if (SystemClock.uptimeMillis() - g.lastInput > 1100) {
+            val next = g.mixAdded.indexOfFirst { !it }.coerceAtLeast(0)
+            val x = floatArrayOf(230f, 540f, 850f)[next]
+            hint(c, x, 835f, 500f, 1030f)
+        }
     }
 
     private fun drawIngredient(c: Canvas, g: GameState, index: Int, b: Bitmap, x: Float, y: Float, h: Float, label: String) {
         if (!g.mixAdded[index] && !(g.dragIngredient == index && g.dragging)) {
             asset(c, b, x, y, h)
+        } else if (g.mixAdded[index]) {
+            a.circle(c, x, y, 46f, Color.argb(220, 240, 250, 221), 710 + index)
+            a.text(c, "✓", x, y + 15f, 45f, Color.rgb(66, 145, 76))
         }
         a.text(c, label, x, 815f, 31f)
     }
 
     private fun roll(c: Canvas, g: GameState) {
-        if (g.roll < .12f) {
-            asset(c, assets.doughBall, 540f, 1120f, 330f)
-        } else {
-            f.dough(c, 540f, 1120f, 215f + g.roll * 120f)
+        asset(c, assets.flourPile, 540f, 1135f, 285f, alpha = 62)
+
+        val t = g.roll.coerceIn(0f, 1f)
+        val ballFade = (255 * (1f - (t / .38f).coerceIn(0f, 1f))).toInt()
+        if (ballFade > 0) {
+            val w = 315f + 180f * (t / .38f).coerceIn(0f, 1f)
+            val h = 315f - 105f * (t / .38f).coerceIn(0f, 1f)
+            f.bitmap(c, assets.doughBall, 540f, 1120f, w, h, alpha = ballFade)
         }
+
+        if (t > .10f) {
+            val q = ((t - .10f) / .90f).coerceIn(0f, 1f)
+            val w = 360f + 350f * q
+            val h = 250f + 440f * q
+            f.bitmap(c, assets.doughRound, 540f, 1120f, w, h, alpha = (80 + 175 * q).toInt())
+        }
+
         asset(
             c, assets.rollingPin,
             if (g.toolHeld) g.touchX else 540f,
@@ -96,38 +162,59 @@ class PrepPainter(
             220f,
             if (g.toolHeld) ((g.touchX - g.prevX) * .18f).coerceIn(-12f, 12f) else -4f
         )
-        if (g.roll > .92f) hint(c, 540f, 1545f, 540f, 1675f)
+
+        if (g.roll >= .98f) completeMark(c, 540f, 1590f)
+        else if (!g.toolHeld) hint(c, 350f, 1420f, 730f, 1420f)
     }
 
     private fun sauce(c: Canvas, g: GameState) {
         f.dough(c, 540f, 1050f, 335f)
-        if (g.sauce > .08f) {
-            f.bitmap(c, assets.pizzaSauce, 540f, 1050f, 697f, 697f, alpha = (g.sauce * 210).toInt().coerceIn(25, 210))
-        }
 
         c.save()
-        c.clipPath(Path().apply { addCircle(540f, 1050f, 285f, Path.Direction.CW) })
-        p.style = Paint.Style.FILL
-        g.sauceMarks.forEachIndexed { i, m ->
-            p.color = if (i % 3 == 0) Color.argb(115, 239, 66, 43) else Color.argb(95, 224, 53, 39)
-            c.drawCircle(m.x, m.y, 48f + (i % 4) * 3, p)
-        }
+        c.clipPath(Path().apply { addCircle(540f, 1050f, 282f, Path.Direction.CW) })
+        f.maskedSauce(c, 540f, 1050f, 696f, g.sauceMarks, 66f)
         c.restore()
 
         asset(c, assets.sauceBowl, 225f, 1580f, 205f)
         a.text(c, "토마토 소스", 230f, 1730f, 30f)
         asset(c, assets.sauceLadle, if (g.toolHeld) g.touchX else 765f, if (g.toolHeld) g.touchY else 1540f, 265f, -18f)
-        if (g.sauce > .82f) hint(c, 540f, 1460f, 540f, 1600f)
+
+        if (g.sauce >= .92f) completeMark(c, 540f, 1535f)
+        else if (g.sauceMarks.isEmpty()) hint(c, 765f, 1450f, 620f, 1220f)
     }
 
     private fun cheese(c: Canvas, g: GameState) {
         f.pizza(c, 540f, 1040f, 340f, 1f, 0f)
-        if (g.cheese > .06f) {
-            f.bitmap(c, assets.pizzaCheese, 540f, 1040f, 707f, 707f, alpha = (g.cheese * 230).toInt().coerceIn(30, 230))
+
+        c.save()
+        c.clipPath(Path().apply { addCircle(540f, 1040f, 282f, Path.Direction.CW) })
+        g.cheeseBits.takeLast(180).forEachIndexed { i, bit ->
+            val h = 27f + (i % 4) * 3f
+            asset(c, assets.shreddedCheese, bit.x, bit.y, h, bit.rotation, 245)
         }
+        c.restore()
+
         asset(c, assets.shreddedCheese, 235f, 1580f, 170f)
         asset(c, assets.cheeseShaker, if (g.toolHeld) g.touchX else 790f, if (g.toolHeld) g.touchY else 1530f, 230f, if (g.toolHeld) -15f else 9f)
-        if (g.cheese > .78f) hint(c, 540f, 1450f, 540f, 1600f)
+
+        if (g.cheese >= .90f) completeMark(c, 540f, 1530f)
+        else if (g.cheeseBits.isEmpty()) hint(c, 790f, 1455f, 650f, 1220f)
+    }
+
+    private fun addedPulse(time: Long): Float {
+        if (time <= 0L) return 1f
+        val age = (SystemClock.uptimeMillis() - time).coerceAtLeast(0L)
+        if (age >= 420L) return 1f
+        return 1f + .12f * sin(age / 420f * Math.PI).toFloat()
+    }
+
+    private fun completeMark(c: Canvas, x: Float, y: Float) {
+        val q = (1f + .04f * sin(SystemClock.uptimeMillis() / 120.0)).toFloat()
+        c.save()
+        c.scale(q, q, x, y)
+        a.circle(c, x, y, 49f, Color.rgb(236, 249, 216), 800)
+        a.text(c, "✓", x, y + 16f, 50f, Color.rgb(62, 151, 72))
+        c.restore()
     }
 
     private fun hint(c: Canvas, x1: Float, y1: Float, x2: Float, y2: Float) {
