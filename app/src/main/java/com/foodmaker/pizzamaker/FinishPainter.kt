@@ -11,6 +11,9 @@ class FinishPainter(
     private val onBakeDone: () -> Unit
 ) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var cachedSignature = Int.MIN_VALUE
+    private var cachedRawPizza: Bitmap? = null
+    private var cachedBakedPizza: Bitmap? = null
 
     fun draw(c: Canvas, g: GameState) {
         when (g.stage) {
@@ -28,8 +31,29 @@ class FinishPainter(
         f.bitmap(c, b, x, y, w, h, rotation, alpha)
     }
 
+    private fun toppingSignature(g: GameState): Int {
+        var value = 17
+        g.toppings.forEach { value = value * 31 + it.hashCode() }
+        return value
+    }
+
+    private fun frozenPizza(g: GameState, baked: Boolean): Bitmap {
+        val signature = toppingSignature(g)
+        if (signature != cachedSignature) {
+            cachedSignature = signature
+            cachedRawPizza = f.composePizza(g.toppings, baked = false)
+            cachedBakedPizza = f.composePizza(g.toppings, baked = true)
+        }
+        return if (baked) requireNotNull(cachedBakedPizza) else requireNotNull(cachedRawPizza)
+    }
+
+    private fun drawFrozenPizza(c: Canvas, g: GameState, x: Float, y: Float, r: Float, baked: Boolean) {
+        val b = frozenPizza(g, baked)
+        f.bitmap(c, b, x, y, r * 2.08f, r * 2.08f)
+    }
+
     private fun toppings(c: Canvas, g: GameState) {
-        drawPlayerPizza(c, g, 540f, 830f, 350f, baked = false)
+        drawLivePizza(c, g, 540f, 830f, 350f)
 
         val ts = ToppingType.values()
         ts.forEachIndexed { i, t ->
@@ -59,7 +83,7 @@ class FinishPainter(
             a.box(c, RectF(330f, 1610f, 750f, 1740f), 52f, Color.rgb(245, 190, 70), 410)
             a.text(c, "오븐으로!", 540f, 1691f, 42f)
         } else {
-            a.text(c, "토핑을 ${4 - g.toppings.size}개만 더 올려봐", 540f, 1685f, 29f, Color.rgb(88, 71, 54))
+            a.text(c, "토핑을 " + (4 - g.toppings.size) + "개만 더 올려봐", 540f, 1685f, 29f, Color.rgb(88, 71, 54))
         }
     }
 
@@ -80,7 +104,7 @@ class FinishPainter(
                 if (nearOpening) {
                     drawPizzaInOven(c, g, baked = false, x = g.ovenX, y = g.ovenY, r = 245f)
                 } else {
-                    drawPlayerPizza(c, g, g.ovenX, g.ovenY, 285f, baked = false)
+                    drawFrozenPizza(c, g, g.ovenX, g.ovenY, 285f, baked = false)
                 }
                 if (!g.pizzaHeld && now - g.lastInput > 1000L) {
                     hint(c, 540f, 1260f, 540f, 905f)
@@ -110,7 +134,7 @@ class FinishPainter(
         }
 
         if (g.bakeDone) {
-            a.text(c, "띵! 내가 만든 피자가 그대로 구워졌어", 540f, 1405f, 34f)
+            a.text(c, "띵! 같은 피자가 그대로 구워졌어", 540f, 1405f, 34f)
             a.box(c, RectF(330f, 1460f, 750f, 1605f), 52f, Color.rgb(245, 190, 70), 431)
             a.text(c, "피자 꺼내기", 540f, 1550f, 40f)
         }
@@ -120,38 +144,23 @@ class FinishPainter(
         asset(c, assets.ovenOpen, 540f, 665f, 790f)
     }
 
-    private fun drawPizzaInOven(
-        c: Canvas,
-        g: GameState,
-        baked: Boolean,
-        x: Float,
-        y: Float,
-        r: Float
-    ) {
+    private fun drawPizzaInOven(c: Canvas, g: GameState, baked: Boolean, x: Float, y: Float, r: Float) {
         c.save()
         c.clipRect(RectF(302f, 485f, 780f, 855f))
-        drawPlayerPizza(c, g, x, y, r, baked)
+        drawFrozenPizza(c, g, x, y, r, baked)
         c.restore()
         f.ovenFront(c, 540f, 665f, 790f)
     }
 
     private fun cut(c: Canvas, g: GameState) {
         asset(c, assets.plate, 540f, 960f, 810f)
-        drawPlayerPizza(c, g, 540f, 960f, 340f, baked = true)
+        drawFrozenPizza(c, g, 540f, 960f, 340f, baked = true)
 
-        p.pathEffect = null
         g.cutAngles.forEachIndexed { i, angle ->
-            val r = Math.toRadians(angle.toDouble())
-            val dx = cos(r).toFloat() * 315f
-            val dy = sin(r).toFloat() * 315f
-            a.line(
-                c,
-                540f - dx, 960f - dy,
-                540f + dx, 960f + dy,
-                Color.rgb(108, 70, 43),
-                8f,
-                470 + i
-            )
+            val rad = Math.toRadians(angle.toDouble())
+            val dx = cos(rad).toFloat() * 315f
+            val dy = sin(rad).toFloat() * 315f
+            a.line(c, 540f - dx, 960f - dy, 540f + dx, 960f + dy, Color.rgb(108, 70, 43), 8f, 470 + i)
         }
 
         if (g.cutCount < 3) {
@@ -161,9 +170,9 @@ class FinishPainter(
             p.color = Color.argb(72, 76, 65, 55)
             floatArrayOf(0f, 60f, 120f).forEach { angle ->
                 if (g.cutAngles.none { angularDiff(it, angle) < 22f }) {
-                    val r = Math.toRadians(angle.toDouble())
-                    val dx = cos(r).toFloat() * 300f
-                    val dy = sin(r).toFloat() * 300f
+                    val rad = Math.toRadians(angle.toDouble())
+                    val dx = cos(rad).toFloat() * 300f
+                    val dy = sin(rad).toFloat() * 300f
                     c.drawLine(540f - dx, 960f - dy, 540f + dx, 960f + dy, p)
                 }
             }
@@ -176,6 +185,7 @@ class FinishPainter(
 
     private fun eat(c: Canvas, g: GameState) {
         asset(c, assets.plate, 540f, 960f, 820f)
+        val pizza = frozenPizza(g, baked = true)
 
         repeat(6) { i ->
             if (!g.eaten[i]) {
@@ -191,33 +201,20 @@ class FinishPainter(
                     arcTo(RectF(200f, 620f, 880f, 1300f), start, 60f)
                     close()
                 })
-                drawPlayerPizza(c, g, 540f, 960f, 340f, baked = true)
+                f.bitmap(c, pizza, 540f, 960f, 707f, 707f)
                 c.restore()
             }
         }
 
         floatArrayOf(0f, 60f, 120f).forEachIndexed { i, angle ->
-            val r = Math.toRadians(angle.toDouble())
-            val dx = cos(r).toFloat() * 315f
-            val dy = sin(r).toFloat() * 315f
-            a.line(
-                c,
-                540f - dx, 960f - dy,
-                540f + dx, 960f + dy,
-                Color.rgb(108, 70, 43),
-                6f,
-                520 + i
-            )
+            val rad = Math.toRadians(angle.toDouble())
+            val dx = cos(rad).toFloat() * 315f
+            val dy = sin(rad).toFloat() * 315f
+            a.line(c, 540f - dx, 960f - dy, 540f + dx, 960f + dy, Color.rgb(108, 70, 43), 6f, 520 + i)
         }
 
         val left = g.eaten.count { !it }
-        a.text(
-            c,
-            if (left > 0) "내가 만든 피자를 한 조각씩 먹어봐" else "냠! 다 먹었다!",
-            540f,
-            1470f,
-            37f
-        )
+        a.text(c, if (left > 0) "내가 만든 피자를 한 조각씩 먹어봐" else "냠! 다 먹었다!", 540f, 1470f, 37f)
         if (left == 0) completeMark(c, 540f, 1585f)
     }
 
@@ -234,38 +231,23 @@ class FinishPainter(
 
         a.box(c, RectF(100f, 300f, 980f, 1180f), 70f, Color.argb(238, 255, 248, 223), 530)
         a.text(c, "피자 완성!", 540f, 470f, 78f, Color.rgb(231, 75, 48))
-        a.text(c, "처음부터 끝까지 내가 만든 피자야", 540f, 555f, 34f)
+        a.text(c, "처음부터 끝까지 같은 피자야", 540f, 555f, 34f)
 
         asset(c, assets.plate, 540f, 860f, 590f)
-        drawPlayerPizza(c, g, 540f, 860f, 245f, baked = true)
+        drawFrozenPizza(c, g, 540f, 860f, 245f, baked = true)
         floatArrayOf(0f, 60f, 120f).forEachIndexed { i, angle ->
-            val r = Math.toRadians(angle.toDouble())
-            val dx = cos(r).toFloat() * 225f
-            val dy = sin(r).toFloat() * 225f
-            a.line(
-                c,
-                540f - dx, 860f - dy,
-                540f + dx, 860f + dy,
-                Color.rgb(108, 70, 43),
-                5f,
-                570 + i
-            )
+            val rad = Math.toRadians(angle.toDouble())
+            val dx = cos(rad).toFloat() * 225f
+            val dy = sin(rad).toFloat() * 225f
+            a.line(c, 540f - dx, 860f - dy, 540f + dx, 860f + dy, Color.rgb(108, 70, 43), 5f, 570 + i)
         }
 
         a.box(c, RectF(285f, 1285f, 795f, 1435f), 60f, Color.rgb(245, 190, 70), 550)
         a.text(c, "한 판 더 만들기", 540f, 1378f, 43f)
     }
 
-    private fun drawPlayerPizza(
-        c: Canvas,
-        g: GameState,
-        x: Float,
-        y: Float,
-        r: Float,
-        baked: Boolean
-    ) {
-        if (baked) f.baked(c, x, y, r)
-        else f.pizza(c, x, y, r, 1f, 1f)
+    private fun drawLivePizza(c: Canvas, g: GameState, x: Float, y: Float, r: Float) {
+        f.pizza(c, x, y, r, 1f, 1f)
         g.toppings.forEach { f.topping(c, it, x, y, r) }
     }
 
